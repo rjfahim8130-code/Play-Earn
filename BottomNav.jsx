@@ -13,6 +13,7 @@ export default function BottomNav() {
 
   const items = [
     { path: '/', icon: '🏠', label: 'হোম' },
+    { path: '/earn', icon: '📺', label: 'কয়েন' }, // নতুন
     { path: '/tasks', icon: '📋', label: 'টাস্ক' },
     { path: '/profile', icon: '👤', label: 'প্রোফাইল' },
   ]
@@ -32,4 +33,4 @@ export default function BottomNav() {
       ))}
     </nav>
   )
-}
+     }
