@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { UserProvider, useUser } from './UserContext.jsx'
 import BottomNav from './BottomNav.jsx'
 import HomeScreen from './HomeScreen.jsx'
+import EarnScreen from './EarnScreen.jsx' // নতুন ফাইল
 import SpinScreen from './SpinScreen.jsx'
 import MahjongScreen from './MahjongScreen.jsx'
 import TasksScreen from './TasksScreen.jsx'
@@ -17,6 +18,7 @@ function AppContent() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Routes>
         <Route path="/" element={<HomeScreen />} />
+        <Route path="/earn" element={<EarnScreen />} />
         <Route path="/spin" element={<SpinScreen />} />
         <Route path="/mahjong" element={<MahjongScreen />} />
         <Route path="/tasks" element={<TasksScreen />} />
