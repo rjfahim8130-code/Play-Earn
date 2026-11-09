@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useUser } from './UserContext.jsx'
 
 const SEGMENTS = [
@@ -14,185 +14,79 @@ const SEGMENTS = [
 ]
 
 export default function SpinScreen() {
-  const { addPoints } = useUser()
+  const { user, addPoints } = useUser()
   const navigate = useNavigate()
+  const location = useLocation()
+  const isFree = new URLSearchParams(location.search).get('free') === 'true'
+
   const [spinning, setSpinning] = useState(false)
   const [result, setResult] = useState(null)
   const [rotation, setRotation] = useState(0)
-  const wheelRef = useRef(null)
 
   const spin = () => {
     if (spinning) return
     setSpinning(true)
     setResult(null)
 
-    // Random segment
-    const index = Math.floor(Math.random() * SEGMENTS.length)
-    const segmentAngle = 360 / SEGMENTS.length
-    // Extra spins + land on selected segment
-    const extraSpins = 5 + Math.floor(Math.random() * 3)
-    const targetAngle = extraSpins * 360 + (360 - (index * segmentAngle + segmentAngle / 2))
+    const randomDeg = Math.floor(Math.random() * 360)
+    const totalRotation = rotation + (360 * 5) + randomDeg
 
-    setRotation(prev => prev + targetAngle)
+    setRotation(totalRotation)
 
     setTimeout(async () => {
-      const won = SEGMENTS[index]
-      setResult(won)
-      await addPoints(won.points)
+      const normalizedDeg = totalDeg % 360 // fixed typo
+      const index = Math.floor(normalizedDeg / (360 / SEGMENTS.length))
+      let wonSegment = SEGMENTS[SEGMENTS.length - 1 - index]
+
+      if (isFree) wonSegment = { ...wonSegment, points: Math.floor(wonSegment.points / 2) }
+
+      setResult(wonSegment)
+      await addPoints(wonSegment.points)
       setSpinning(false)
-    }, 4200)
+    }, 4000)
   }
 
   return (
-    <div style={{
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'radial-gradient(circle at center, #1e1b4b, #0f172a)',
-      padding: '16px',
-      position: 'relative'
-    }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <button
-          onClick={() => navigate('/')}
-          style={{
-            background: 'rgba(255,255,255,0.1)',
-            border: 'none',
-            color: 'white',
-            width: 40,
-            height: 40,
-            borderRadius: '50%',
-            fontSize: 18,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
-          ←
-        </button>
-        <h2 style={{ fontSize: 20 }}>🎰 Spin & Win</h2>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'radial-gradient(circle, #1e1b4b, #0f172a)', padding: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+        <button onClick={() => navigate('/')} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', width: 40, height: 40, borderRadius: '50%' }}>←</button>
+        <h2>{isFree ? '🎰 ফ্রি স্পিন' : '🎰 Spin & Win'}</h2>
         <div style={{ width: 40 }} />
       </div>
 
-      {/* Wheel Container */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative'
-      }}>
-        {/* Pointer */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: '5%', zIndex: 10, fontSize: 32, color: '#fff' }}>▼</div>
         <div style={{
-          position: 'absolute',
-          top: '12%',
-          zIndex: 10,
-          fontSize: 28,
-          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))'
+          width: 280, height: 280, borderRadius: '50%', border: '6px solid #FFB800',
+          position: 'relative', overflow: 'hidden',
+          transition: 'transform 4s cubic-bezier(0.1, 0.8, 0.1, 1)',
+          transform: `rotate(${rotation}deg)`,
+          background: `conic-gradient(${SEGMENTS.map((s, i) => `${s.color} ${(i / SEGMENTS.length) * 100}% ${((i + 1) / SEGMENTS.length) * 100}%`).join(', ')})`
         }}>
-          ▼
-        </div>
-
-        {/* Wheel */}
-        <div
-          ref={wheelRef}
-          style={{
-            width: 280,
-            height: 280,
-            borderRadius: '50%',
-            border: '6px solid #FFB800',
-            boxShadow: '0 0 30px rgba(255,184,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden',
-            transition: spinning ? 'transform 4s cubic-bezier(0.2, 0.8, 0.3, 1)' : 'none',
-            transform: `rotate(${rotation}deg)`,
-            background: `conic-gradient(
-              ${SEGMENTS.map((s, i) => {
-                const start = (i / SEGMENTS.length) * 100
-                const end = ((i + 1) / SEGMENTS.length) * 100
-                return `${s.color} ${start}% ${end}%`
-              }).join(', ')}
-            )`
-          }}
-        >
           {SEGMENTS.map((seg, i) => {
             const angle = (i + 0.5) * (360 / SEGMENTS.length)
             return (
-              <div
-                key={i}
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  width: '50%',
-                  height: 30,
-                  marginTop: -15,
-                  transformOrigin: 'left center',
-                  transform: `rotate(${angle}deg)`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'flex-end',
-                  paddingRight: 12,
-                  fontWeight: 700,
-                  fontSize: 16,
-                  color: 'white',
-                  textShadow: '0 1px 2px rgba(0,0,0,0.6)'
-                }}
-              >
+              <div key={i} style={{
+                position: 'absolute', top: '50%', left: '50%', width: '50%', height: 30, marginTop: -15,
+                transformOrigin: 'left center', transform: `rotate(${angle}deg)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 12,
+                fontWeight: 700, fontSize: 18, color: 'white'
+              }}>
                 {seg.label}
               </div>
             )
           })}
         </div>
-
-        {/* Center circle */}
-        <div style={{
-          position: 'absolute',
-          width: 50,
-          height: 50,
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, #FFB800, #F59E0B)',
-          border: '3px solid white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 20,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-          zIndex: 5
-        }}>
-          🎯
-        </div>
       </div>
 
-      {/* Result / Button */}
       <div style={{ paddingBottom: 30, textAlign: 'center' }}>
         {result ? (
           <div>
-            <div style={{
-              fontSize: 28,
-              fontWeight: 700,
-              color: '#FFB800',
-              marginBottom: 8
-            }}>
-              +{result.points} ⭐ পয়েন্ট!
-            </div>
-            <button
-              className="btn btn-primary"
-              style={{ width: '100%', marginTop: 12 }}
-              onClick={() => navigate('/')}
-            >
-              হোমে ফিরে যান
-            </button>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#FFB800', marginBottom: 16 }}>+{result.points} ⭐ পয়েন্ট!</div>
+            <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => navigate('/')}>হোমে ফিরে যান</button>
           </div>
         ) : (
-          <button
-            className="btn btn-secondary"
-            style={{ width: '100%', fontSize: 18, padding: '16px' }}
-            onClick={spin}
-            disabled={spinning}
-          >
+          <button className="btn btn-secondary" style={{ width: '100%', fontSize: 18, padding: '16px' }} onClick={spin} disabled={spinning}>
             {spinning ? 'ঘুরছে...' : '🎰 স্পিন করুন'}
           </button>
         )}
