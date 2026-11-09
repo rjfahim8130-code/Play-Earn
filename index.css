@@ -1,0 +1,26 @@
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+:root {
+  --primary:#6C3CE9; --secondary:#FFB800; --success:#22C55E; --danger:#EF4444;
+  --bg:#0f172a; --card:#1e293b; --text:#f1f5f9; --muted:#94a3b8;
+}
+html,body,#root { height:100%; font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text); overflow:hidden; }
+button { font-family:inherit; cursor:pointer; border:none; outline:none; }
+.card { background:var(--card); border-radius:16px; padding:16px; border:1px solid rgba(255,255,255,0.06); }
+.btn { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px 20px; border-radius:12px; font-weight:600; font-size:15px; transition:transform .15s,opacity .15s; }
+.btn:active { transform:scale(0.96); }
+.btn:disabled { opacity:0.5; cursor:not-allowed; }
+.btn-primary { background:linear-gradient(135deg,#6C3CE9,#8B5CF6); color:white; }
+.btn-secondary { background:linear-gradient(135deg,#FFB800,#F59E0B); color:#1e293b; }
+.btn-outline { background:transparent; border:2px solid var(--primary); color:var(--primary); }
+.btn-danger { background:linear-gradient(135deg,#EF4444,#DC2626); color:white; }
+.badge { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:20px; font-size:13px; font-weight:600; }
+.badge-coin { background:rgba(255,184,0,0.15); color:var(--secondary); }
+.badge-point { background:rgba(108,60,233,0.15); color:#a78bfa; }
+.scroll-area { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:80px; }
+.bottom-nav { position:fixed; bottom:0; left:0; right:0; height:64px; background:#0f172a; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-around; align-items:center; z-index:100; padding-bottom:env(safe-area-inset-bottom); }
+.nav-item { display:flex; flex-direction:column; align-items:center; gap:2px; color:var(--muted); font-size:11px; background:none; padding:6px 12px; }
+.nav-item.active { color:var(--secondary); }
+.nav-item span { font-size:20px; }
+.loading { display:flex; justify-content:center; align-items:center; height:100%; font-size:18px; color:var(--muted); }
+.admin-input { width:100%; padding:10px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.3); color:white; font-size:14px; margin-bottom:8px; }
+.admin-label { font-size:12px; color:var(--muted); margin-bottom:4px; display:block; }
