@@ -58,7 +58,6 @@ export function UserProvider({ children }) {
             }
           }
         } else {
-          // ডেইলি রিসেট লজিক (দিন পরিবর্তন হলে সেশন এবং ফ্রি প্লে রিসেট হবে)
           const last = existing.last_session_at ? new Date(existing.last_session_at) : null
           if (last && last.toDateString() !== new Date().toDateString()) {
             const { data: updated } = await supabase.from('users').update({ 
@@ -97,8 +96,14 @@ export function UserProvider({ children }) {
     }
   }, [user, updateUser])
 
+  // ✅ নতুন যোগ করা হয়েছে: অ্যাডমিন সেটিংস রিফ্রেশ করার জন্য
+  const refreshSettings = useCallback(async () => {
+    const { data } = await supabase.from('settings').select('*').single()
+    if (data) setSettings({ ...DEFAULT_SETTINGS, ...data })
+  }, [])
+
   return (
-    <UserContext.Provider value={{ user, settings, loading, isAdmin, updateUser, addPoints, setUser }}>
+    <UserContext.Provider value={{ user, settings, loading, isAdmin, updateUser, addPoints, setUser, refreshSettings }}>
       {children}
     </UserContext.Provider>
   )
@@ -106,4 +111,4 @@ export function UserProvider({ children }) {
 
 export function useUser() {
   return useContext(UserContext)
-      }
+}
