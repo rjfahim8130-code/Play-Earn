@@ -30,18 +30,21 @@ export default function SpinScreen() {
 
     const randomDeg = Math.floor(Math.random() * 360)
     const totalRotation = rotation + (360 * 5) + randomDeg
-
     setRotation(totalRotation)
 
     setTimeout(async () => {
-      const normalizedDeg = totalDeg % 360 // fixed typo
+      // সঠিক অ্যাঙ্গেল ক্যালকুলেশন
+      const normalizedDeg = totalRotation % 360
       const index = Math.floor(normalizedDeg / (360 / SEGMENTS.length))
       let wonSegment = SEGMENTS[SEGMENTS.length - 1 - index]
 
       if (isFree) wonSegment = { ...wonSegment, points: Math.floor(wonSegment.points / 2) }
 
       setResult(wonSegment)
+      
+      // পয়েন্ট যোগ করা
       await addPoints(wonSegment.points)
+      
       setSpinning(false)
     }, 4000)
   }
