@@ -33,11 +33,12 @@ export default function SpinScreen() {
     setRotation(totalRotation)
 
     setTimeout(async () => {
-      // সঠিক অ্যাঙ্গেল ক্যালকুলেশন
+      // ✅ এখানে টাইপো ঠিক করা হয়েছে (normalizedDeg)
       const normalizedDeg = totalRotation % 360
       const index = Math.floor(normalizedDeg / (360 / SEGMENTS.length))
       let wonSegment = SEGMENTS[SEGMENTS.length - 1 - index]
 
+      // ফ্রি খেললে অর্ধেক পয়েন্ট
       if (isFree) wonSegment = { ...wonSegment, points: Math.floor(wonSegment.points / 2) }
 
       setResult(wonSegment)
