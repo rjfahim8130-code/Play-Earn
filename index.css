@@ -16,7 +16,10 @@ button { font-family:inherit; cursor:pointer; border:none; outline:none; }
 .badge { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:20px; font-size:13px; font-weight:600; }
 .badge-coin { background:rgba(255,184,0,0.15); color:var(--secondary); }
 .badge-point { background:rgba(108,60,233,0.15); color:#a78bfa; }
-.scroll-area { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:80px; }
+
+/* সলভিং প্যাডিং বটম সমস্যা */
+.scroll-area { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:120px; }
+
 .bottom-nav { position:fixed; bottom:0; left:0; right:0; height:64px; background:#0f172a; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-around; align-items:center; z-index:100; padding-bottom:env(safe-area-inset-bottom); }
 .nav-item { display:flex; flex-direction:column; align-items:center; gap:2px; color:var(--muted); font-size:11px; background:none; padding:6px 12px; }
 .nav-item.active { color:var(--secondary); }
@@ -238,3 +241,4 @@ button { font-family:inherit; cursor:pointer; border:none; outline:none; }
   0% { transform: scale(0.5); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
   }
+    
