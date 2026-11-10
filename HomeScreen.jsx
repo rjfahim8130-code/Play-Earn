@@ -32,7 +32,6 @@ export default function HomeScreen() {
 
   return (
     <div className="scroll-area" style={{ padding: '16px', paddingBottom: 140 }}>
-      {/* Balance Card */}
       <div style={{
         background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
         borderRadius: 16, padding: '20px 18px', marginBottom: 16,
@@ -62,7 +61,6 @@ export default function HomeScreen() {
         </div>
       </div>
 
-      {/* Session Progress */}
       <div className="card" style={{ marginBottom: 16 }}>
         <h3 style={{ fontSize: 15, marginBottom: 10 }}>📊 সেশন প্রগ্রেস</h3>
         <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>
@@ -82,12 +80,11 @@ export default function HomeScreen() {
           </button>
         ) : (
           <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-            সব বাটন মিলে দৈনিক {needSessions}টি সেশন পূর্ণ হলে বোনাস পাবেন
+            সব বিজ্ঞাপন বাটন মিলে দৈনিক {needSessions}টি সেশন পূর্ণ হলে বোনাস পাবেন
           </p>
         )}
       </div>
 
-      {/* Games — navigate only, no coin cut */}
       <div className="card" style={{ marginBottom: 16 }}>
         <h3 style={{ fontSize: 15, marginBottom: 12 }}>🎮 গেম খেলুন</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
