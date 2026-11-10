@@ -2,16 +2,41 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useUser } from './UserContext.jsx'
 
-const NUMBERS = [5, 10, 15, 20, 50, 100, 200, 500]
+// ৮ রকমের পেইড ও ফ্রি ভ্যালু অ্যারে
+const PAID_VALUES = [5, 10, 15, 20, 50, 100, 200, 500]
+const FREE_VALUES = [0.5, 1, 1.5, 2, 5, 10, 20, 50]
 const ITEM_HEIGHT = 90
 
+// প্রবাবিলিটি ওয়েট লজিক ফাংশন
+function pickWeighted(values) {
+  const n = values.length
+  const midCount = n - 2
+  const weights = values.map((_, i) => {
+    if (i === 0) return 10
+    if (i === n - 1) return 5
+    return (85 / midCount) * ((midCount - (i - 1)) / ((midCount + 1) / 2))
+  })
+  const total = weights.reduce((a, b) => a + b, 0)
+  let r = Math.random() * total
+  for (let i = 0; i < n; i++) {
+    r -= weights[i]
+    if (r <= 0) return values[i]
+  }
+  return values[0]
+}
+
 export default function SpinScreen() {
-  const { user, addPoints } = useUser()
+  const { user, updateUser, addPoints } = useUser()
   const navigate = useNavigate()
   const location = useLocation()
-  const isFree = new URLSearchParams(location.search).get('free') === 'true'
 
-  const [balance, setBalance] = useState(1000) // ডেমো ব্যালেন্স, পরে সুপাবেস থেকে আসবে
+  // URL থেকে মোড চেক করা (?mode=free অথবা paid)
+  const searchParams = new URLSearchParams(location.search)
+  const mode = searchParams.get('mode') || 'paid'
+  const isFree = mode === 'free'
+
+  const NUMBERS = isFree ? FREE_VALUES : PAID_VALUES
+
   const [isSpinning, setIsSpinning] = useState(false)
   const [history, setHistory] = useState([])
   const [leverPulled, setLeverPulled] = useState(false)
@@ -32,30 +57,29 @@ export default function SpinScreen() {
       })
     }
     reelRef.current.style.transform = `translateY(0px)`
-  }, [])
+  }, [isFree])
 
   const pullLever = async () => {
     if (isSpinning) return
-    if (balance < 10) {
-      alert('পর্যাপ্ত ব্যালেন্স নেই!')
-      return
-    }
+    if (!user) return
+
+    // যদি পেইড মোড হয়, তবে এন্ট্রি ফি চেক করা (হোম স্ক্রিন থেকে অলরেডি ফি কাটা হয়ে থাকলে এখানে ডিরেক্ট স্পিন হতে পারে, অথবা চেক করতে পারেন)
+    // যেহেতু HomeScreen থেকে ফি কেটে রাউট করা হয়েছে, তাই এখানে আর আলাদা ফি কাটছি না। তবে ফ্রি মোড হলে ফ্রি লিমিট চেক করতে পারেন।
 
     setIsSpinning(true)
     setResultText('')
-    setBalance(prev => prev - 10) // বেট কাটা হলো
 
     // লিভার অ্যানিমেশন
     setLeverPulled(true)
     setTimeout(() => setLeverPulled(false), 300)
 
-    // ১. র‍্যান্ডম রেজাল্ট নির্ধারণ
-    const randomIndex = Math.floor(Math.random() * NUMBERS.length)
-    const wonAmount = NUMBERS[randomIndex]
+    // ১. প্রবাবিলিটি ওয়েট অনুযায়ী উইনিং ভ্যালু নির্ধারণ
+    const wonAmount = pickWeighted(NUMBERS)
+    const targetValueIndex = NUMBERS.indexOf(wonAmount)
 
-    // ২. রিল ঘোরানোর ক্যালকুলেশন
-    const totalItems = 40 // ৫ সেট * ৮
-    const targetIndex = totalItems - (8 - randomIndex) - 8
+    // ২. রিল ঘোরানোর ক্যালকুলেশন (৮টি আইটেম * ৫ সেট = ৪০ আইটেম)
+    const totalItems = 40 
+    const targetIndex = totalItems - (8 - targetValueIndex) - 8
 
     // বর্তমান পজিশন রিসেট
     reelRef.current.style.transition = 'none'
@@ -73,11 +97,7 @@ export default function SpinScreen() {
     setTimeout(async () => {
       setIsSpinning(false)
       
-      // ফ্রি খেললে অর্ধেক পয়েন্ট
-      const finalPoints = isFree ? Math.floor(wonAmount / 2) : wonAmount
-      
-      setBalance(prev => prev + wonAmount)
-      setResultText(`+${finalPoints} ⭐ পয়েন্ট!`)
+      setResultText(`+${wonAmount} ⭐ পয়েন্ট!`)
       
       // হিস্টোরি আপডেট
       setHistory(prev => {
@@ -86,7 +106,7 @@ export default function SpinScreen() {
       })
 
       // সুপাবেসে পয়েন্ট যোগ করা
-      await addPoints(finalPoints)
+      await addPoints(wonAmount)
 
       // রিল রিসেট করা
       setTimeout(() => {
@@ -98,10 +118,10 @@ export default function SpinScreen() {
   }
 
   return (
-    <div className="screen-container">
+    <div className="screen-container scroll-area" style={{ paddingBottom: 140 }}>
       <div className="header">
         <button onClick={() => navigate('/')} className="back-btn">←</button>
-        <h2>{isFree ? '🎰 ফ্রি স্পিন' : '🎰 Spin & Win'}</h2>
+        <h2>{isFree ? '🎰 ফ্রি স্পিন' : '🎰 স্পিন অ্যান্ড উইন'}</h2>
         <div style={{ width: 40 }} />
       </div>
 
@@ -123,8 +143,8 @@ export default function SpinScreen() {
 
       <div className="ui-panel">
         <div className="stats-row">
-          <span>ব্যালেন্স: <b>{balance}</b></span>
-          <span>বেট: <b>10</b></span>
+          <span>কয়েন: <b>🪙 {user?.coins || 0}</b></span>
+          <span>পয়েন্ট: <b>⭐ {user?.points || 0}</b></span>
         </div>
 
         <div style={{ height: 40, textAlign: 'center', marginBottom: 10 }}>
@@ -136,7 +156,7 @@ export default function SpinScreen() {
           onClick={pullLever} 
           disabled={isSpinning}
         >
-          {isSpinning ? 'ঘুরছে...' : 'SPIN (10)'}
+          {isSpinning ? 'ঘুরছে...' : (isFree ? 'ফ্রি স্পিন করুন' : 'স্পিন করুন')}
         </button>
         
         <div className="history-section">
