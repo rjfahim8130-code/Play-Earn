@@ -43,9 +43,6 @@ export default function EarnScreen() {
 
   const watchAd = async (type) => {
     if (!user) return
-    if ((user.sessions_today || 0) >= maxSessions) {
-      return alert('আজকের সেশন লিমিট শেষ!')
-    }
 
     const isReward = type === 'reward'
     const left = isReward ? rewardLeft : popupLeft
@@ -54,7 +51,14 @@ export default function EarnScreen() {
     const coins = isReward ? (settings.reward_ad_coins || 50) : (settings.popup_ad_coins || 20)
     const phaseKey = isReward ? 'reward_phase' : 'popup_phase'
     const cdKey    = isReward ? 'reward_cd_until' : 'popup_cd_until'
+    const sessKey  = isReward ? 'reward_sessions' : 'popup_sessions'
+    
     const currentPhase = user[phaseKey] || 0   // 0 = ready for short, 1 = ready for long
+    const currentSess = user[sessKey] || 0
+
+    if (currentSess >= maxSessions) {
+      return alert('এই বাটনের আজকের সেশন লিমিট শেষ!')
+    }
 
     const ok = window.confirm(`বিজ্ঞাপন দেখে ${coins} কয়েন পাবেন?`)
     if (!ok) return
@@ -67,11 +71,10 @@ export default function EarnScreen() {
       updates[phaseKey] = 1
       updates[cdKey] = new Date(now + shortMs).toISOString()
     } else {
-      // দ্বিতীয় ক্লিক → ৪৫/৬০ মিনিট CD + সেশন +১
+      // দ্বিতীয় ক্লিক → লম্বা CD + সংশ্লিষ্ট বাটনের সেশন +১
       updates[phaseKey] = 0
       updates[cdKey] = new Date(now + longMs).toISOString()
-      updates.sessions_today = (user.sessions_today || 0) + 1
-      updates.last_session_at = new Date().toISOString()
+      updates[sessKey] = currentSess + 1
     }
 
     await updateUser(updates)
@@ -79,7 +82,8 @@ export default function EarnScreen() {
   }
 
   const renderButton = (type, left, coins) => {
-    const disabled = left > 0 || (user?.sessions_today || 0) >= maxSessions
+    const sess = type === 'reward' ? (user?.reward_sessions || 0) : (user?.popup_sessions || 0)
+    const disabled = left > 0 || sess >= maxSessions
     return (
       <button
         className={type === 'reward' ? 'btn btn-primary' : 'btn btn-secondary'}
@@ -106,9 +110,10 @@ export default function EarnScreen() {
         আপনার কয়েন: 🪙 {user?.coins || 0}
       </div>
 
-      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
-        আজকের সেশন: {user?.sessions_today || 0} / {maxSessions}
-      </p>
+      <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+        <span>🎁 রিওয়ার্ড সেশন: {user?.reward_sessions || 0} / {maxSessions}</span>
+        <span>📢 পপআপ সেশন: {user?.popup_sessions || 0} / {maxSessions}</span>
+      </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div className="card" style={{ textAlign: 'center' }}>
