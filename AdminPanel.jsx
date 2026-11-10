@@ -59,18 +59,48 @@ export default function AdminPanel() {
     setSaving(true)
     setMsg('')
     try {
-      const payload = { ...form, updated_at: new Date().toISOString() }
-      delete payload.id
-      const { data: existing } = await supabase.from('settings').select('id').limit(1).maybeSingle()
+      const allowed = [
+        'reward_ad_coins','popup_ad_coins','ad_cooldown_minutes','session_cooldown_minutes',
+        'max_sessions_per_day','spin_entry_fee','mahjong_entry_fee','mahjong_win_points',
+        'daily_task_sessions','daily_task_reward','referral_bonus_coins','referral_commission_percent',
+        'silver_card_points','gold_card_points','starting_coins','redeem_min_points',
+        'redeem_min_sessions','redeem_min_active_refs','free_spin_per_day','free_game_per_day',
+        'free_mahjong_per_day','free_spin_reward_coins','free_game_reward_coins'
+      ]
+      const payload = {}
+      allowed.forEach(k => {
+        if (form[k] !== undefined && form[k] !== null && form[k] !== '') {
+          payload[k] = Number(form[k])
+        }
+      })
+      payload.updated_at = new Date().toISOString()
+
+      const { data: existing, error: selErr } = await supabase
+        .from('settings')
+        .select('id')
+        .limit(1)
+        .maybeSingle()
+
+      if (selErr) throw selErr
+
+      let error
       if (existing?.id) {
-        await supabase.from('settings').update(payload).eq('id', existing.id)
+        const res = await supabase.from('settings').update(payload).eq('id', existing.id).select()
+        error = res.error
+        if (!res.data?.length) throw new Error('Update returned 0 rows — RLS বা id সমস্যা')
       } else {
-        await supabase.from('settings').insert(payload)
+        const res = await supabase.from('settings').insert(payload).select()
+        error = res.error
+        if (!res.data?.length) throw new Error('Insert failed')
       }
+      if (error) throw error
+
       await refreshSettings()
-      setMsg('✅ সেটিংস সেভ হয়েছে! সবাই ~১২ সেকেন্ডের মধ্যে পাবে')
+      setForm(f => ({ ...f, ...payload }))
+      setMsg('✅ সেটিংস সেভ হয়েছে!')
     } catch (e) {
-      setMsg('❌ সেভ ব্যর্থ: ' + e.message)
+      console.error(e)
+      setMsg('❌ সেভ ব্যর্থ: ' + (e.message || String(e)))
     }
     setSaving(false)
   }
@@ -184,7 +214,7 @@ export default function AdminPanel() {
                   <span style={{ fontSize: 12, color: 'var(--muted)' }}>TG: {u.tg_id}</span>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>
-                  🪙 {u.coins} | ⭐ {u.points} | R:{u.reward_sessions || 0} P:{u.popup_sessions || 0} | {u.referral_code}
+                  🪙 {u.coins} | ⭐ {u.points} | S:{u.sessions_today || 0} | {u.referral_code}
                   {u.is_banned && <span style={{ color: 'var(--danger)', marginLeft: 8 }}>🚫 ব্যানড</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
