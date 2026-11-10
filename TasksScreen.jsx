@@ -37,7 +37,7 @@ export default function TasksScreen() {
   }
 
   return (
-    <div className="scroll-area" style={{ padding: '16px' }}>
+    <div className="scroll-area" style={{ padding: '16px', paddingBottom: 140 }}>
       <h2 style={{ fontSize: 22, marginBottom: 20, paddingTop: 8 }}>📋 টাস্ক ও রেফারেল</h2>
 
       {/* Daily Task */}
