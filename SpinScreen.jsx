@@ -29,20 +29,21 @@ export default function SpinScreen() {
 
   const entryFee = settings?.spin_entry_fee || 10
   const maxFree = settings?.free_spin_per_day || 2
-  const freeUsed = user?.free_spin_used || 0
-  const freeLeft = Math.max(0, maxFree - freeUsed)
-  const coins = user?.coins || 0
-
-  const canPaid = coins >= entryFee
-  const canFree = freeLeft > 0
-  const canSpin = canPaid || canFree
-  const willUseFree = !canPaid && canFree
 
   const [isSpinning, setIsSpinning] = useState(false)
   const [history, setHistory] = useState([])
   const [leverPulled, setLeverPulled] = useState(false)
   const [resultText, setResultText] = useState('')
   const reelRef = useRef(null)
+  const spinningRef = useRef(false)
+
+  const coins = user?.coins || 0
+  const freeUsed = user?.free_spin_used || 0
+  const freeLeft = Math.max(0, maxFree - freeUsed)
+  const canPaid = coins >= entryFee
+  const canFree = freeLeft > 0
+  const canSpin = canPaid || canFree
+  const willUseFree = !canPaid && canFree
 
   useEffect(() => {
     if (!reelRef.current) return
@@ -60,19 +61,25 @@ export default function SpinScreen() {
   }, [willUseFree])
 
   const pullLever = async () => {
-    if (isSpinning || !user) return
+    if (spinningRef.current || isSpinning || !user) return
 
     const currentCoins = user.coins || 0
     const currentFreeUsed = user.free_spin_used || 0
-    const currentFreeLeft = maxFree - currentFreeUsed
     const usePaid = currentCoins >= entryFee
-    const useFree = !usePaid && currentFreeLeft > 0
+    const useFree = !usePaid && (maxFree - currentFreeUsed) > 0
 
     if (!usePaid && !useFree) {
       alert('কয়েন নেই এবং আজকের ফ্রি স্পিনও শেষ!')
       return
     }
 
+    spinningRef.current = true
+    setIsSpinning(true)
+    setResultText('')
+    setLeverPulled(true)
+    setTimeout(() => setLeverPulled(false), 300)
+
+    // আগে কয়েন/ফ্রি কাটুন — functional updateUser দিয়ে
     if (usePaid) {
       await updateUser({ coins: currentCoins - entryFee })
     } else {
@@ -80,14 +87,8 @@ export default function SpinScreen() {
     }
 
     const numbers = useFree ? FREE_VALUES : PAID_VALUES
-
-    setIsSpinning(true)
-    setResultText('')
-    setLeverPulled(true)
-    setTimeout(() => setLeverPulled(false), 300)
-
     const wonAmount = pickWeighted(numbers)
-    const targetValueIndex = numbers.indexOf(wonAmount)
+    const targetValueIndex = Math.max(0, numbers.indexOf(wonAmount))
     const totalItems = 40
     const targetIndex = totalItems - (8 - targetValueIndex) - 8
 
@@ -100,10 +101,12 @@ export default function SpinScreen() {
     }
 
     setTimeout(async () => {
-      setIsSpinning(false)
       setResultText(`+${wonAmount} ⭐ পয়েন্ট!`)
       setHistory(prev => [wonAmount, ...prev].slice(0, 5))
+      // শুধু পয়েন্ট যোগ — কয়েন স্পর্শ করে না
       await addPoints(wonAmount)
+      setIsSpinning(false)
+      spinningRef.current = false
       setTimeout(() => {
         if (reelRef.current) {
           reelRef.current.style.transition = 'none'
@@ -142,8 +145,8 @@ export default function SpinScreen() {
 
       <div className="ui-panel">
         <div className="stats-row">
-          <span>কয়েন: <b>🪙 {user?.coins ?? coins}</b></span>
-          <span>ফ্রি: <b>{Math.max(0, maxFree - (user?.free_spin_used || 0))}/{maxFree}</b></span>
+          <span>কয়েন: <b>🪙 {coins}</b></span>
+          <span>ফ্রি: <b>{freeLeft}/{maxFree}</b></span>
         </div>
 
         <div style={{ textAlign: 'center', fontSize: 13, color: '#94a3b8', marginBottom: 8 }}>
@@ -187,4 +190,4 @@ export default function SpinScreen() {
       </div>
     </div>
   )
-}
+          }
