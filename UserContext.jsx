@@ -46,8 +46,8 @@ export function UserProvider({ children }) {
             is_banned: false, 
             free_spin_used: 0, 
             free_mahjong_used: 0,
-            reward_sessions: 0, // যোগ করা হয়েছে
-            popup_sessions: 0   // যোগ করা হয়েছে
+            reward_sessions: 0,
+            popup_sessions: 0
           })
           setLoading(false)
           return
@@ -64,8 +64,8 @@ export function UserProvider({ children }) {
             sessions_today: 0, 
             free_spin_used: 0,
             free_mahjong_used: 0,
-            reward_sessions: 0, // যোগ করা হয়েছে
-            popup_sessions: 0,  // যোগ করা হয়েছে
+            reward_sessions: 0,
+            popup_sessions: 0,
             referral_code: refCode, 
             referred_by: startParam
           }).select().single()
@@ -78,6 +78,22 @@ export function UserProvider({ children }) {
                 await supabase.from('referrals').insert({ referrer_id: referrer.id, referred_id: newUser.id, status: 'pending' })
               }
             }
+          } else {
+            // ইনসার্ট ফেল করলে ফলব্যাক ইউজার
+            setUser({
+              id: 'local',
+              tg_id: tgId,
+              username,
+              coins: 100,
+              points: 0,
+              sessions_today: 0,
+              referral_code: generateRefCode(),
+              is_banned: false,
+              free_spin_used: 0,
+              free_mahjong_used: 0,
+              reward_sessions: 0,
+              popup_sessions: 0
+            })
           }
         } else {
           const last = existing.last_session_at ? new Date(existing.last_session_at) : null
@@ -86,8 +102,8 @@ export function UserProvider({ children }) {
               sessions_today: 0, 
               free_spin_used: 0, 
               free_mahjong_used: 0,
-              reward_sessions: 0, // যোগ করা হয়েছে
-              popup_sessions: 0,  // যোগ করা হয়েছে
+              reward_sessions: 0,
+              popup_sessions: 0,
               daily_bonus_claimed: false 
             }).eq('id', existing.id).select().single()
             setUser(updated || existing)
@@ -97,6 +113,21 @@ export function UserProvider({ children }) {
         }
       } catch (err) {
         console.error(err)
+        // ফলব্যাক — যাতে স্ক্রিন ফাঁকা না হয়ে যায়
+        setUser({
+          id: 'local',
+          tg_id: 0,
+          username: 'Player',
+          coins: 100,
+          points: 0,
+          sessions_today: 0,
+          referral_code: 'LOCAL001',
+          is_banned: false,
+          free_spin_used: 0,
+          free_mahjong_used: 0,
+          reward_sessions: 0,
+          popup_sessions: 0
+        })
       } finally {
         setLoading(false)
       }
@@ -121,7 +152,6 @@ export function UserProvider({ children }) {
     }
   }, [user, updateUser])
 
-  // ✅ অ্যাডমিন সেটিংস রিফ্রেশ করার জন্য
   const refreshSettings = useCallback(async () => {
     const { data } = await supabase.from('settings').select('*').single()
     if (data) setSettings({ ...DEFAULT_SETTINGS, ...data })
@@ -136,5 +166,4 @@ export function UserProvider({ children }) {
 
 export function useUser() {
   return useContext(UserContext)
-                  }
-  
+}
