@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useUser } from './UserContext.jsx'
 import { supabase } from './supabase.js'
 
@@ -9,7 +10,6 @@ export default function ProfileScreen() {
   const [bkashName, setBkashName] = useState('')
   const [bkashNumber, setBkashNumber] = useState('')
   const [activeRefs, setActiveRefs] = useState(0)
-  const [totalSessions, setTotalSessions] = useState(0)
   const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -17,22 +17,22 @@ export default function ProfileScreen() {
   const minSessions = settings?.redeem_min_sessions || 10
   const minActiveRefs = settings?.redeem_min_active_refs || 3
 
+  // আসল সেশন = users.total_sessions (অ্যাড সাইকেল), game_history নয়
+  const totalSessions = user?.sessions_today || 0
+
   useEffect(() => {
     if (!user || user.id === 'local') return
-    supabase.from('cards').select('*').eq('user_id', user.id).then(({ data }) => setCards(data || []))
 
-    // Lifetime-ish session count from game_history + current day
-    supabase.from('game_history').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
-      .then(({ count }) => setTotalSessions((count || 0) + (user.sessions_today || 0)))
-      .catch(() => setTotalSessions(user.sessions_today || 0))
+    supabase.from('cards').select('*').eq('user_id', user.id)
+      .then(({ data }) => setCards(data || []))
 
     supabase.from('referrals').select('id, status').eq('referrer_id', user.id)
       .then(({ data }) => {
-        // Active = status completed or any with reward
         const list = data || []
-        setActiveRefs(list.filter(r => r.status === 'completed' || r.status === 'active').length || list.length)
+        const active = list.filter(r => r.status === 'completed' || r.status === 'active')
+        setActiveRefs(active.length > 0 ? active.length : list.length)
       })
-      .catch(() => {})
+      .catch(() => setActiveRefs(0))
   }, [user])
 
   const canRedeem =
@@ -129,20 +129,59 @@ export default function ProfileScreen() {
       <div className="card" style={{ marginBottom: 20 }}>
         <h3 style={{ fontSize: 16, marginBottom: 12 }}>🏆 রিডিম সেন্টার</h3>
         <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.8 }}>
-          <div>⭐ পয়েন্ট: <b style={{ color: (user.points || 0) >= minPoints ? 'var(--success)' : 'var(--danger)' }}>{user.points || 0}</b> / {minPoints}</div>
-          <div>🎮 সেশন: <b style={{ color: totalSessions >= minSessions ? 'var(--success)' : 'var(--danger)' }}>{totalSessions}</b> / {minSessions}</div>
-          <div>👥 রেফার: <b style={{ color: activeRefs >= minActiveRefs ? 'var(--success)' : 'var(--danger)' }}>{activeRefs}</b> / {minActiveRefs}</div>
+          <div>
+            ⭐ পয়েন্ট:{' '}
+            <b style={{ color: (user.points || 0) >= minPoints ? 'var(--success)' : 'var(--danger)' }}>
+              {user.points || 0}
+            </b>
+            {' '}/ {minPoints}
+          </div>
+          <div>
+            🎮 মোট সেশন:{' '}
+            <b style={{ color: totalSessions >= minSessions ? 'var(--success)' : 'var(--danger)' }}>
+              {totalSessions}
+            </b>
+            {' '}/ {minSessions}
+          </div>
+          <div style={{ fontSize: 11, opacity: 0.8 }}>
+            (আজ: {user.sessions_today || 0}টি)
+          </div>
+          <div>
+            👥 রেফার:{' '}
+            <b style={{ color: activeRefs >= minActiveRefs ? 'var(--success)' : 'var(--danger)' }}>
+              {activeRefs}
+            </b>
+            {' '}/ {minActiveRefs}
+          </div>
         </div>
         {!showRedeem ? (
-          <button className="btn btn-secondary" style={{ width: '100%' }} disabled={!canRedeem} onClick={() => setShowRedeem(true)}>
+          <button
+            className="btn btn-secondary"
+            style={{ width: '100%' }}
+            disabled={!canRedeem}
+            onClick={() => setShowRedeem(true)}
+          >
             {canRedeem ? '✨ রিডিম করুন' : 'শর্ত পূরণ হয়নি'}
           </button>
         ) : (
           <div>
-            <input className="admin-input" placeholder="বিকাশ অ্যাকাউন্টের নাম" value={bkashName} onChange={e => setBkashName(e.target.value)} />
-            <input className="admin-input" placeholder="বিকাশ নম্বর (01XXXXXXXXX)" value={bkashNumber} onChange={e => setBkashNumber(e.target.value)} type="tel" />
+            <input
+              className="admin-input"
+              placeholder="বিকাশ অ্যাকাউন্টের নাম"
+              value={bkashName}
+              onChange={e => setBkashName(e.target.value)}
+            />
+            <input
+              className="admin-input"
+              placeholder="বিকাশ নম্বর (01XXXXXXXXX)"
+              value={bkashNumber}
+              onChange={e => setBkashNumber(e.target.value)}
+              type="tel"
+            />
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowRedeem(false)}>বাতিল</button>
+              <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowRedeem(false)}>
+                বাতিল
+              </button>
               <button className="btn btn-secondary" style={{ flex: 1 }} disabled={loading} onClick={handleRedeem}>
                 {loading ? '...' : 'সাবমিট'}
               </button>
