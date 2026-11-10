@@ -37,7 +37,7 @@ export default function EarnScreen() {
     if (ms <= 0) return '00:00'
     const m = Math.floor(ms / 60000)
     const s = Math.floor((ms % 60000) / 1000)
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` // ফিক্স করা হয়েছে
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
   }
 
   const watchAd = async (type) => {
@@ -81,6 +81,7 @@ export default function EarnScreen() {
 
     if (thisDone && otherDone) {
       updates.sessions_today = (user.sessions_today || 0) + 1
+      updates.total_sessions = (user.total_sessions || 0) + 1
       updates.last_session_at = new Date().toISOString()
       updates.reward_cycle_done = false
       updates.popup_cycle_done = false
@@ -160,5 +161,4 @@ export default function EarnScreen() {
       </div>
     </div>
   )
-  }
-              
+}
