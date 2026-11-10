@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, ADMIN_TG_ID, DEFAULT_SETTINGS } from './supabase.js'
 
 const UserContext = createContext(null)
@@ -21,6 +21,7 @@ function fallbackUser(tgId = 0, username = 'Player') {
     coins: 100,
     points: 0,
     sessions_today: 0,
+    total_sessions: 0,
     referral_code: 'LOCAL001',
     is_banned: false,
     free_spin_used: 0,
@@ -40,12 +41,17 @@ export function UserProvider({ children }) {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const userIdRef = useRef(null)
 
-  // Settings: initial + every 12s so admin changes apply live
+  useEffect(() => {
+    userIdRef.current = user?.id || null
+  }, [user?.id])
+
+  // Settings: initial + every 12s
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const { data } = await supabase.from('settings').select('*').single()
+        const { data } = await supabase.from('settings').select('*').limit(1).maybeSingle()
         if (data) setSettings({ ...DEFAULT_SETTINGS, ...data })
       } catch (_) {}
     }
@@ -95,7 +101,9 @@ export function UserProvider({ children }) {
             last_name: lastName,
             photo_url: photoUrl,
             coins: startCoins,
+            points: 0,
             sessions_today: 0,
+            total_sessions: 0,
             free_spin_used: 0,
             free_mahjong_used: 0,
             reward_phase: 0,
@@ -132,14 +140,13 @@ export function UserProvider({ children }) {
             })
           }
         } else {
-          // Update profile fields from Telegram if changed
           const profileUpdates = {}
           if (firstName && existing.first_name !== firstName) profileUpdates.first_name = firstName
           if (lastName && existing.last_name !== lastName) profileUpdates.last_name = lastName
           if (photoUrl && existing.photo_url !== photoUrl) profileUpdates.photo_url = photoUrl
           if (username && existing.username !== username) profileUpdates.username = username
 
-          // Daily reset
+          // Daily reset (শুধু দৈনিক ফিল্ড — total_sessions রাখবে)
           const last = existing.last_session_at ? new Date(existing.last_session_at) : null
           const isNewDay = !last || last.toDateString() !== new Date().toDateString()
           if (isNewDay) {
@@ -177,37 +184,50 @@ export function UserProvider({ children }) {
     init()
   }, [])
 
+  // Functional update — পুরনো coins/points আর ওভাররাইট হবে না
   const updateUser = useCallback(async (updates) => {
-    if (!user) return
-    const newUser = { ...user, ...updates }
-    setUser(newUser)
-    if (user.id && user.id !== 'local') {
+    let id = userIdRef.current
+    setUser(prev => {
+      if (!prev) return prev
+      id = prev.id
+      return { ...prev, ...updates }
+    })
+    if (id && id !== 'local') {
       try {
-        await supabase.from('users').update(updates).eq('id', user.id)
+        await supabase.from('users').update(updates).eq('id', id)
       } catch (e) {
         console.error('updateUser error', e)
       }
     }
-  }, [user])
+  }, [])
 
   const addPoints = useCallback(async (amount) => {
-    if (!user || !amount) return
     const pts = Number(amount) || 0
-    await updateUser({ points: (user.points || 0) + pts })
+    if (!pts) return
 
-    if (user.id && user.id !== 'local') {
+    let id = null
+    let newPoints = 0
+
+    setUser(prev => {
+      if (!prev) return prev
+      id = prev.id
+      newPoints = (prev.points || 0) + pts
+      return { ...prev, points: newPoints }
+    })
+
+    if (id && id !== 'local') {
       try {
+        await supabase.from('users').update({ points: newPoints }).eq('id', id)
         await supabase.from('game_history').insert({
-          user_id: user.id,
+          user_id: id,
           game_type: 'game_win',
           won_points: pts
         })
 
-        // Referral commission
         const { data: refRow } = await supabase
           .from('referrals')
           .select('referrer_id')
-          .eq('referred_id', user.id)
+          .eq('referred_id', id)
           .maybeSingle()
 
         if (refRow?.referrer_id) {
@@ -228,13 +248,13 @@ export function UserProvider({ children }) {
           }
         }
       } catch (e) {
-        console.error('addPoints side-effects', e)
+        console.error('addPoints error', e)
       }
     }
-  }, [user, updateUser, settings.referral_commission_percent])
+  }, [settings.referral_commission_percent])
 
   const refreshSettings = useCallback(async () => {
-    const { data } = await supabase.from('settings').select('*').single()
+    const { data } = await supabase.from('settings').select('*').limit(1).maybeSingle()
     if (data) setSettings({ ...DEFAULT_SETTINGS, ...data })
   }, [])
 
