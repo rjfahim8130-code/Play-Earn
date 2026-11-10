@@ -10,7 +10,6 @@ export default function EarnScreen() {
   const [rewardLeft, setRewardLeft] = useState(0)
   const [popupLeft, setPopupLeft] = useState(0)
 
-  // Live settings
   const shortMs = (settings.ad_cooldown_minutes || 5) * 60 * 1000
   const longMs = (settings.session_cooldown_minutes || 45) * 60 * 1000
   const maxSessions = settings.max_sessions_per_day || 5
@@ -38,7 +37,7 @@ export default function EarnScreen() {
     if (ms <= 0) return '00:00'
     const m = Math.floor(ms / 60000)
     const s = Math.floor((ms % 60000) / 1000)
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` // ফিক্স করা হয়েছে
   }
 
   const watchAd = async (type) => {
@@ -64,11 +63,9 @@ export default function EarnScreen() {
     const updates = { coins: (user.coins || 0) + coins }
 
     if (currentPhase === 0) {
-      // প্রথম ক্লিক → শর্ট CD
       updates[phaseKey] = 1
       updates[cdKey] = new Date(now + shortMs).toISOString()
     } else {
-      // দ্বিতীয় ক্লিক → লং CD + এই বাটনের সাইকেল সম্পন্ন
       updates[phaseKey] = 0
       updates[cdKey] = new Date(now + longMs).toISOString()
       updates[doneKey] = true
@@ -77,17 +74,14 @@ export default function EarnScreen() {
     if (isReward) updates.last_reward_ad_at = new Date().toISOString()
     else updates.last_popup_ad_at = new Date().toISOString()
 
-    // অন্য বাটন কি ইতিমধ্যে সাইকেল শেষ করেছে?
     const otherDone = isReward
-      ? (user.popup_cycle_done || updates.popup_cycle_done)
-      : (user.reward_cycle_done || updates.reward_cycle_done)
+      ? (user.popup_cycle_done === true)
+      : (user.reward_cycle_done === true)
     const thisDone = updates[doneKey] === true || user[doneKey] === true
 
-    // দুটোই সম্পন্ন → ১ সেশন যোগ
     if (thisDone && otherDone) {
       updates.sessions_today = (user.sessions_today || 0) + 1
       updates.last_session_at = new Date().toISOString()
-      // পরের সেশনের জন্য ফ্ল্যাগ রিসেট
       updates.reward_cycle_done = false
       updates.popup_cycle_done = false
     }
@@ -104,7 +98,9 @@ export default function EarnScreen() {
       } catch (_) {}
     }
 
-    alert(`+${coins} কয়েন!` + (updates.sessions_today ? `\nসেশন: ${updates.sessions_today}` : ''))
+    let msg = `+${coins} কয়েন পেয়েছেন!`
+    if (updates.sessions_today) msg += `\nসেশন: ${updates.sessions_today}`
+    alert(msg)
   }
 
   const renderButton = (type, left) => {
@@ -141,8 +137,8 @@ export default function EarnScreen() {
         আপনার কয়েন: 🪙 {user?.coins || 0}
       </div>
 
-      <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-        <span>🎯 আজকের সেশন: {user?.sessions_today || 0} / {maxSessions}</span>
+      <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
+        🎯 আজকের সেশন: {user?.sessions_today || 0} / {maxSessions}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -164,4 +160,5 @@ export default function EarnScreen() {
       </div>
     </div>
   )
-}
+  }
+              
