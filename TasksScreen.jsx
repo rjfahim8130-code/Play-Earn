@@ -88,7 +88,7 @@ export default function TasksScreen() {
           border: '1px solid rgba(255,184,0,0.3)',
           borderRadius: 10, padding: 12, marginBottom: 14, textAlign: 'center'
         }}>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>তোমার ইউনিক কোড</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>আপনার ইউনিক কোড</div>
           <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--secondary)', letterSpacing: 2 }}>
             {user.referral_code || '—'}
           </div>
@@ -96,7 +96,7 @@ export default function TasksScreen() {
         <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 12, lineHeight: 1.5 }}>
           বন্ধু অন্তত ১টি সেশন শেষ করলে আপনি <strong>{refBonus} কয়েন</strong> পাবেন।
           <br /><br />
-          বন্ধুর পয়েন্টের <strong>{refPercent}%</strong> আপনার অ্যাকাউন্টে আসবে (লাইফটাইম)।
+          বন্ধুর পয়েন্টের <strong>{refPercent}%</strong> আপনার অ্যাকাউন্টে যোগ হবে (লাইফটাইম)।
         </p>
         <button className="btn btn-secondary" style={{ width: '100%' }} onClick={copyLink}>
           {copied ? '✅ কপি হয়েছে!' : '🔗 রেফারেল লিংক কপি করুন'}
