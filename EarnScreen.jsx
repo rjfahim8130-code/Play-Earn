@@ -10,7 +10,7 @@ export default function EarnScreen() {
   const [rewardLeft, setRewardLeft] = useState(0)
   const [popupLeft, setPopupLeft] = useState(0)
 
-  // Live settings — recalculates when admin changes cooldown
+  // Live settings
   const shortMs = (settings.ad_cooldown_minutes || 5) * 60 * 1000
   const longMs = (settings.session_cooldown_minutes || 45) * 60 * 1000
   const maxSessions = settings.max_sessions_per_day || 5
@@ -50,12 +50,11 @@ export default function EarnScreen() {
     const coins = isReward ? (settings.reward_ad_coins || 50) : (settings.popup_ad_coins || 20)
     const phaseKey = isReward ? 'reward_phase' : 'popup_phase'
     const cdKey = isReward ? 'reward_cd_until' : 'popup_cd_until'
-    const sessKey = isReward ? 'reward_sessions' : 'popup_sessions'
-    const currentPhase = user[phaseKey] || 0
-    const currentSess = user[sessKey] || 0
+    const doneKey = isReward ? 'reward_cycle_done' : 'popup_cycle_done'
 
-    if (currentSess >= maxSessions) {
-      return alert('এই বাটনের আজকের সেশন লিমিট শেষ!')
+    const currentPhase = user[phaseKey] || 0
+    if ((user.sessions_today || 0) >= maxSessions) {
+      return alert('আজকের সেশন লিমিট শেষ!')
     }
 
     const ok = window.confirm(`বিজ্ঞাপন দেখে ${coins} কয়েন পাবেন?`)
@@ -65,20 +64,33 @@ export default function EarnScreen() {
     const updates = { coins: (user.coins || 0) + coins }
 
     if (currentPhase === 0) {
-      // Short CD
+      // প্রথম ক্লিক → শর্ট CD
       updates[phaseKey] = 1
       updates[cdKey] = new Date(now + shortMs).toISOString()
     } else {
-      // Long CD + session +1 for THIS button
+      // দ্বিতীয় ক্লিক → লং CD + এই বাটনের সাইকেল সম্পন্ন
       updates[phaseKey] = 0
       updates[cdKey] = new Date(now + longMs).toISOString()
-      updates[sessKey] = currentSess + 1
-      updates.last_session_at = new Date().toISOString()
-      updates.sessions_today = (user.sessions_today || 0) + 1
+      updates[doneKey] = true
     }
 
     if (isReward) updates.last_reward_ad_at = new Date().toISOString()
     else updates.last_popup_ad_at = new Date().toISOString()
+
+    // অন্য বাটন কি ইতিমধ্যে সাইকেল শেষ করেছে?
+    const otherDone = isReward
+      ? (user.popup_cycle_done || updates.popup_cycle_done)
+      : (user.reward_cycle_done || updates.reward_cycle_done)
+    const thisDone = updates[doneKey] === true || user[doneKey] === true
+
+    // দুটোই সম্পন্ন → ১ সেশন যোগ
+    if (thisDone && otherDone) {
+      updates.sessions_today = (user.sessions_today || 0) + 1
+      updates.last_session_at = new Date().toISOString()
+      // পরের সেশনের জন্য ফ্ল্যাগ রিসেট
+      updates.reward_cycle_done = false
+      updates.popup_cycle_done = false
+    }
 
     await updateUser(updates)
 
@@ -92,24 +104,24 @@ export default function EarnScreen() {
       } catch (_) {}
     }
 
-    alert(`+${coins} কয়েন পেয়েছেন!`)
+    alert(`+${coins} কয়েন!` + (updates.sessions_today ? `\nসেশন: ${updates.sessions_today}` : ''))
   }
 
   const renderButton = (type, left) => {
-    const sess = type === 'reward' ? (user?.reward_sessions || 0) : (user?.popup_sessions || 0)
-    const coins = type === 'reward' ? (settings.reward_ad_coins || 50) : (settings.popup_ad_coins || 20)
-    const disabled = left > 0 || sess >= maxSessions
+    const isReward = type === 'reward'
+    const coins = isReward ? (settings.reward_ad_coins || 50) : (settings.popup_ad_coins || 20)
+    const disabled = left > 0 || (user?.sessions_today || 0) >= maxSessions
     return (
       <button
-        className={type === 'reward' ? 'btn btn-primary' : 'btn btn-secondary'}
+        className={isReward ? 'btn btn-primary' : 'btn btn-secondary'}
         style={{ width: '100%' }}
         disabled={disabled}
         onClick={() => watchAd(type)}
       >
         {left > 0
           ? `⏳ ${formatTime(left)}`
-          : sess >= maxSessions
-            ? 'আজকের লিমিট শেষ'
+          : (user?.sessions_today || 0) >= maxSessions
+            ? 'আজকের সেশন লিমিট শেষ'
             : `বিজ্ঞাপন দেখে ${coins} কয়েন পান`}
       </button>
     )
@@ -130,8 +142,7 @@ export default function EarnScreen() {
       </div>
 
       <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-        <span>🎁 রিওয়ার্ড সেশন: {user?.reward_sessions || 0} / {maxSessions}</span>
-        <span>📢 পপআপ সেশন: {user?.popup_sessions || 0} / {maxSessions}</span>
+        <span>🎯 আজকের সেশন: {user?.sessions_today || 0} / {maxSessions}</span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
