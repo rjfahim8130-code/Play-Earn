@@ -1,9 +1,9 @@
 import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { UserProvider, useUser } from './UserContext.jsx'
 import BottomNav from './BottomNav.jsx'
 import HomeScreen from './HomeScreen.jsx'
-import EarnScreen from './EarnScreen.jsx' // নতুন ফাইল
+import EarnScreen from './EarnScreen.jsx'
 import SpinScreen from './SpinScreen.jsx'
 import MahjongScreen from './MahjongScreen.jsx'
 import TasksScreen from './TasksScreen.jsx'
@@ -33,10 +33,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <UserProvider>
         <AppContent />
       </UserProvider>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
