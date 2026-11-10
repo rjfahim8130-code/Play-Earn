@@ -2,24 +2,82 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase.js'
 import { useUser } from './UserContext.jsx'
+import { DEFAULT_SETTINGS } from './supabase.js'
+
+const SETTINGS_KEYS = [
+  'reward_ad_coins',
+  'popup_ad_coins',
+  'ad_cooldown_minutes',
+  'session_cooldown_minutes',
+  'max_sessions_per_day',
+  'spin_entry_fee',
+  'mahjong_entry_fee',
+  'mahjong_win_points',
+  'daily_task_sessions',
+  'daily_task_reward',
+  'referral_bonus_coins',
+  'referral_commission_percent',
+  'silver_card_points',
+  'gold_card_points',
+  'starting_coins',
+  'redeem_min_points',
+  'redeem_min_sessions',
+  'redeem_min_active_refs',
+  'free_spin_per_day',
+  'free_game_per_day',
+  'free_mahjong_per_day',
+  'free_spin_reward_coins',
+  'free_game_reward_coins',
+]
 
 export default function AdminPanel() {
   const navigate = useNavigate()
-  const { settings, refreshSettings } = useUser()
+  const { refreshSettings } = useUser()
   const [tab, setTab] = useState('settings')
-  const [form, setForm] = useState({})
+  const [form, setForm] = useState({ ...DEFAULT_SETTINGS })
+  const [settingsId, setSettingsId] = useState(null)
   const [users, setUsers] = useState([])
   const [stats, setStats] = useState({})
   const [redeems, setRedeems] = useState([])
   const [saving, setSaving] = useState(false)
+  const [loadingForm, setLoadingForm] = useState(true)
   const [search, setSearch] = useState('')
   const [msg, setMsg] = useState('')
 
-  useEffect(() => {
-    setForm({ ...settings })
-  }, [settings])
+  // সরাসরি DB থেকে লোড — কনটেক্সটের উপর নির্ভর নয়
+  const loadFormFromDb = async () => {
+    setLoadingForm(true)
+    setMsg('')
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle()
+
+      if (error) throw error
+
+      if (data?.id) {
+        setSettingsId(data.id)
+        const next = { ...DEFAULT_SETTINGS }
+        SETTINGS_KEYS.forEach(k => {
+          if (data[k] !== undefined && data[k] !== null) next[k] = data[k]
+        })
+        setForm(next)
+      } else {
+        setSettingsId(null)
+        setForm({ ...DEFAULT_SETTINGS })
+        setMsg('⚠️ settings টেবিলে কোনো রো নেই — সেভ করলে নতুন রো তৈরি হবে')
+      }
+    } catch (e) {
+      console.error(e)
+      setMsg('❌ সেটিংস লোড ব্যর্থ: ' + (e.message || String(e)))
+    }
+    setLoadingForm(false)
+  }
 
   useEffect(() => {
+    if (tab === 'settings') loadFormFromDb()
     if (tab === 'users') loadUsers()
     if (tab === 'analytics') loadStats()
     if (tab === 'redeems') loadRedeems()
@@ -36,13 +94,16 @@ export default function AdminPanel() {
     const { count: totalAds } = await supabase.from('ads_log').select('*', { count: 'exact', head: true })
     const { data: coinData } = await supabase.from('users').select('coins, points')
     let totalCoins = 0, totalPoints = 0
-    ;(coinData || []).forEach(u => { totalCoins += u.coins || 0; totalPoints += u.points || 0 })
+    ;(coinData || []).forEach(u => {
+      totalCoins += u.coins || 0
+      totalPoints += u.points || 0
+    })
     setStats({
       totalUsers: totalUsers || 0,
       totalGames: totalGames || 0,
       totalAds: totalAds || 0,
       totalCoins,
-      totalPoints
+      totalPoints,
     })
   }
 
@@ -59,48 +120,56 @@ export default function AdminPanel() {
     setSaving(true)
     setMsg('')
     try {
-      const allowed = [
-        'reward_ad_coins','popup_ad_coins','ad_cooldown_minutes','session_cooldown_minutes',
-        'max_sessions_per_day','spin_entry_fee','mahjong_entry_fee','mahjong_win_points',
-        'daily_task_sessions','daily_task_reward','referral_bonus_coins','referral_commission_percent',
-        'silver_card_points','gold_card_points','starting_coins','redeem_min_points',
-        'redeem_min_sessions','redeem_min_active_refs','free_spin_per_day','free_game_per_day',
-        'free_mahjong_per_day','free_spin_reward_coins','free_game_reward_coins'
-      ]
       const payload = {}
-      allowed.forEach(k => {
-        if (form[k] !== undefined && form[k] !== null && form[k] !== '') {
-          payload[k] = Number(form[k])
-        }
+      SETTINGS_KEYS.forEach(k => {
+        const v = form[k]
+        if (v === undefined || v === null || v === '') return
+        payload[k] = Number(v)
+        if (Number.isNaN(payload[k])) delete payload[k]
       })
-      payload.updated_at = new Date().toISOString()
 
-      const { data: existing, error: selErr } = await supabase
-        .from('settings')
-        .select('id')
-        .limit(1)
-        .maybeSingle()
-
-      if (selErr) throw selErr
-
-      let error
-      if (existing?.id) {
-        const res = await supabase.from('settings').update(payload).eq('id', existing.id).select()
-        error = res.error
-        if (!res.data?.length) throw new Error('Update returned 0 rows — RLS বা id সমস্যা')
-      } else {
-        const res = await supabase.from('settings').insert(payload).select()
-        error = res.error
-        if (!res.data?.length) throw new Error('Insert failed')
+      if (Object.keys(payload).length === 0) {
+        throw new Error('সেভ করার মতো কোনো মান নেই')
       }
-      if (error) throw error
 
-      await refreshSettings()
-      setForm(f => ({ ...f, ...payload }))
-      setMsg('✅ সেটিংস সেভ হয়েছে!')
+      let savedRow = null
+
+      if (settingsId) {
+        const { data, error } = await supabase
+          .from('settings')
+          .update(payload)
+          .eq('id', settingsId)
+          .select('*')
+          .single()
+        if (error) throw error
+        if (!data) throw new Error('Update 0 row — RLS বা id ভুল')
+        savedRow = data
+      } else {
+        const { data, error } = await supabase
+          .from('settings')
+          .insert(payload)
+          .select('*')
+          .single()
+        if (error) throw error
+        if (!data) throw new Error('Insert ব্যর্থ')
+        savedRow = data
+        setSettingsId(data.id)
+      }
+
+      // DB থেকে আবার পড়ে ফর্ম আপডেট
+      const next = { ...DEFAULT_SETTINGS }
+      SETTINGS_KEYS.forEach(k => {
+        if (savedRow[k] !== undefined && savedRow[k] !== null) next[k] = savedRow[k]
+      })
+      setForm(next)
+
+      // গ্লোবাল কনটেক্সটও আপডেট
+      if (typeof refreshSettings === 'function') await refreshSettings()
+
+      setMsg('✅ সেভ OK — DB তে লিখা হয়েছে (id: ' + (savedRow.id || '').toString().slice(0, 8) + '...)')
     } catch (e) {
-      console.error(e)
-      setMsg('❌ সেভ ব্যর্থ: ' + (e.message || String(e)))
+      console.error('saveSettings', e)
+      setMsg('❌ সেভ ব্যর্থ: ' + (e.message || JSON.stringify(e)))
     }
     setSaving(false)
   }
@@ -154,50 +223,62 @@ export default function AdminPanel() {
       <div className="scroll-area" style={{ padding: '12px 16px' }}>
         {tab === 'settings' && (
           <div>
-            <h3 style={{ marginBottom: 14, fontSize: 16 }}>ডাইনামিক সেটিংস</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: 16 }}>ডাইনামিক সেটিংস</h3>
+              <button type="button" className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12 }} onClick={loadFormFromDb}>
+                🔄 DB থেকে আবার লোড
+              </button>
+            </div>
 
-            <Section title="📺 অ্যাড সেটিংস">
-              <Field label="Reward অ্যাড কয়েন" value={form.reward_ad_coins} onChange={v => setForm(f => ({ ...f, reward_ad_coins: +v }))} />
-              <Field label="Popup অ্যাড কয়েন" value={form.popup_ad_coins} onChange={v => setForm(f => ({ ...f, popup_ad_coins: +v }))} />
-              <Field label="অ্যাড কুলডাউন (মিনিট)" value={form.ad_cooldown_minutes} onChange={v => setForm(f => ({ ...f, ad_cooldown_minutes: +v }))} />
-              <Field label="সেশন কুলডাউন (মিনিট)" value={form.session_cooldown_minutes} onChange={v => setForm(f => ({ ...f, session_cooldown_minutes: +v }))} />
-              <Field label="দিনে সর্বোচ্চ সেশন / বাটন" value={form.max_sessions_per_day} onChange={v => setForm(f => ({ ...f, max_sessions_per_day: +v }))} />
-            </Section>
+            {loadingForm ? (
+              <p style={{ color: 'var(--muted)' }}>লোড হচ্ছে...</p>
+            ) : (
+              <>
+                <Section title="📺 অ্যাড সেটিংস">
+                  <Field label="Reward অ্যাড কয়েন" value={form.reward_ad_coins} onChange={v => setForm(f => ({ ...f, reward_ad_coins: v }))} />
+                  <Field label="Popup অ্যাড কয়েন" value={form.popup_ad_coins} onChange={v => setForm(f => ({ ...f, popup_ad_coins: v }))} />
+                  <Field label="অ্যাড কুলডাউন (মিনিট)" value={form.ad_cooldown_minutes} onChange={v => setForm(f => ({ ...f, ad_cooldown_minutes: v }))} />
+                  <Field label="সেশন কুলডাউন (মিনিট)" value={form.session_cooldown_minutes} onChange={v => setForm(f => ({ ...f, session_cooldown_minutes: v }))} />
+                  <Field label="দিনে সর্বোচ্চ সেশন" value={form.max_sessions_per_day} onChange={v => setForm(f => ({ ...f, max_sessions_per_day: v }))} />
+                </Section>
 
-            <Section title="🎮 গেম সেটিংস">
-              <Field label="স্পিন এন্ট্রি ফি (কয়েন)" value={form.spin_entry_fee} onChange={v => setForm(f => ({ ...f, spin_entry_fee: +v }))} />
-              <Field label="মাহজং এন্ট্রি ফি (কয়েন)" value={form.mahjong_entry_fee} onChange={v => setForm(f => ({ ...f, mahjong_entry_fee: +v }))} />
-              <Field label="মাহজং জিতলে পয়েন্ট" value={form.mahjong_win_points} onChange={v => setForm(f => ({ ...f, mahjong_win_points: +v }))} />
-              <Field label="নতুন ইউজার স্টার্টিং কয়েন" value={form.starting_coins} onChange={v => setForm(f => ({ ...f, starting_coins: +v }))} />
-            </Section>
+                <Section title="🎮 গেম সেটিংস">
+                  <Field label="স্পিন এন্ট্রি ফি" value={form.spin_entry_fee} onChange={v => setForm(f => ({ ...f, spin_entry_fee: v }))} />
+                  <Field label="মাহজং এন্ট্রি ফি" value={form.mahjong_entry_fee} onChange={v => setForm(f => ({ ...f, mahjong_entry_fee: v }))} />
+                  <Field label="মাহজং জিতলে পয়েন্ট" value={form.mahjong_win_points} onChange={v => setForm(f => ({ ...f, mahjong_win_points: v }))} />
+                  <Field label="স্টার্টিং কয়েন" value={form.starting_coins} onChange={v => setForm(f => ({ ...f, starting_coins: v }))} />
+                </Section>
 
-            <Section title="👥 রেফারেল ও টাস্ক">
-              <Field label="রেফারেল বোনাস কয়েন" value={form.referral_bonus_coins} onChange={v => setForm(f => ({ ...f, referral_bonus_coins: +v }))} />
-              <Field label="কমিশন %" value={form.referral_commission_percent} onChange={v => setForm(f => ({ ...f, referral_commission_percent: +v }))} />
-              <Field label="দৈনিক টাস্ক সেশন সংখ্যা" value={form.daily_task_sessions} onChange={v => setForm(f => ({ ...f, daily_task_sessions: +v }))} />
-              <Field label="দৈনিক টাস্ক রিওয়ার্ড পয়েন্ট" value={form.daily_task_reward} onChange={v => setForm(f => ({ ...f, daily_task_reward: +v }))} />
-            </Section>
+                <Section title="👥 রেফারেল ও টাস্ক">
+                  <Field label="রেফারেল বোনাস কয়েন" value={form.referral_bonus_coins} onChange={v => setForm(f => ({ ...f, referral_bonus_coins: v }))} />
+                  <Field label="কমিশন %" value={form.referral_commission_percent} onChange={v => setForm(f => ({ ...f, referral_commission_percent: v }))} />
+                  <Field label="দৈনিক টাস্ক সেশন" value={form.daily_task_sessions} onChange={v => setForm(f => ({ ...f, daily_task_sessions: v }))} />
+                  <Field label="দৈনিক টাস্ক পয়েন্ট" value={form.daily_task_reward} onChange={v => setForm(f => ({ ...f, daily_task_reward: v }))} />
+                </Section>
 
-            <Section title="🏆 রিডিম শর্ত">
-              <Field label="মিনিমাম পয়েন্ট" value={form.redeem_min_points} onChange={v => setForm(f => ({ ...f, redeem_min_points: +v }))} />
-              <Field label="মিনিমাম সেশন" value={form.redeem_min_sessions} onChange={v => setForm(f => ({ ...f, redeem_min_sessions: +v }))} />
-              <Field label="মিনিমাম সচল রেফার" value={form.redeem_min_active_refs} onChange={v => setForm(f => ({ ...f, redeem_min_active_refs: +v }))} />
-              <Field label="সিলভার কার্ড পয়েন্ট" value={form.silver_card_points} onChange={v => setForm(f => ({ ...f, silver_card_points: +v }))} />
-              <Field label="গোল্ড কার্ড পয়েন্ট" value={form.gold_card_points} onChange={v => setForm(f => ({ ...f, gold_card_points: +v }))} />
-            </Section>
+                <Section title="🏆 রিডিম শর্ত">
+                  <Field label="মিন পয়েন্ট" value={form.redeem_min_points} onChange={v => setForm(f => ({ ...f, redeem_min_points: v }))} />
+                  <Field label="মিন সেশন" value={form.redeem_min_sessions} onChange={v => setForm(f => ({ ...f, redeem_min_sessions: v }))} />
+                  <Field label="মিন সচল রেফার" value={form.redeem_min_active_refs} onChange={v => setForm(f => ({ ...f, redeem_min_active_refs: v }))} />
+                  <Field label="সিলভার পয়েন্ট" value={form.silver_card_points} onChange={v => setForm(f => ({ ...f, silver_card_points: v }))} />
+                  <Field label="গোল্ড পয়েন্ট" value={form.gold_card_points} onChange={v => setForm(f => ({ ...f, gold_card_points: v }))} />
+                </Section>
 
-            <Section title="🎁 ফ্রি ডেইলি">
-              <Field label="দিনে ফ্রি স্পিন" value={form.free_spin_per_day} onChange={v => setForm(f => ({ ...f, free_spin_per_day: +v }))} />
-              <Field label="দিনে ফ্রি মাহজং" value={form.free_mahjong_per_day ?? form.free_game_per_day} onChange={v => setForm(f => ({ ...f, free_mahjong_per_day: +v, free_game_per_day: +v }))} />
-            </Section>
+                <Section title="🎁 ফ্রি ডেইলি">
+                  <Field label="ফ্রি স্পিন / দিন" value={form.free_spin_per_day} onChange={v => setForm(f => ({ ...f, free_spin_per_day: v }))} />
+                  <Field label="ফ্রি মাহজং / দিন" value={form.free_mahjong_per_day ?? form.free_game_per_day} onChange={v => setForm(f => ({ ...f, free_mahjong_per_day: v, free_game_per_day: v }))} />
+                </Section>
+              </>
+            )}
 
             {msg && (
               <p style={{
-                textAlign: 'center', margin: '10px 0',
-                color: msg.includes('✅') ? 'var(--success)' : 'var(--danger)'
+                textAlign: 'center', margin: '10px 0', fontSize: 13,
+                color: msg.includes('✅') ? 'var(--success)' : msg.includes('⚠️') ? 'var(--secondary)' : 'var(--danger)'
               }}>{msg}</p>
             )}
-            <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={saveSettings} disabled={saving}>
+
+            <button className="btn btn-primary" style={{ width: '100%', marginTop: 8 }} onClick={saveSettings} disabled={saving || loadingForm}>
               {saving ? 'সেভ হচ্ছে...' : '💾 সেটিংস সেভ করুন'}
             </button>
           </div>
@@ -215,7 +296,7 @@ export default function AdminPanel() {
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>
                   🪙 {u.coins} | ⭐ {u.points} | S:{u.sessions_today || 0} | {u.referral_code}
-                  {u.is_banned && <span style={{ color: 'var(--danger)', marginLeft: 8 }}>🚫 ব্যানড</span>}
+                  {u.is_banned && <span style={{ color: 'var(--danger)', marginLeft: 8 }}>🚫</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <button className="btn btn-outline" style={{ padding: '6px 10px', fontSize: 12 }} onClick={() => adjustBalance(u.id, 'coins', 100)}>+১০০ কয়েন</button>
@@ -253,9 +334,6 @@ export default function AdminPanel() {
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontWeight: 700 }}>{r.points_spent} ⭐</div>
                     <div style={{ fontSize: 11, color: 'var(--muted)' }}>{r.status}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                      {r.created_at ? new Date(r.created_at).toLocaleDateString('bn') : ''}
-                    </div>
                   </div>
                 </div>
               </div>
@@ -284,7 +362,7 @@ function Field({ label, value, onChange }) {
         className="admin-input"
         type="number"
         value={value ?? ''}
-        onChange={e => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value === '' ? '' : e.target.value)}
       />
     </div>
   )
@@ -298,4 +376,4 @@ function StatCard({ icon, label, value }) {
       <div style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</div>
     </div>
   )
-}
+                  }
