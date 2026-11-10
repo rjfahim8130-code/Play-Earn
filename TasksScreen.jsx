@@ -14,10 +14,9 @@ export default function TasksScreen() {
   const refBonus = settings?.referral_bonus_coins || 500
   const refPercent = settings?.referral_commission_percent || 10
 
-  const rewardSess = user.reward_sessions || 0
-  const popupSess = user.popup_sessions || 0
-  const progress = Math.min(rewardSess, popupSess, needSessions)
-  const canClaim = progress >= needSessions && !user.daily_bonus_claimed
+  const sessions = user.sessions_today || 0
+  const progress = Math.min(sessions, needSessions)
+  const canClaim = sessions >= needSessions && !user.daily_bonus_claimed
 
   const claimDaily = async () => {
     if (!canClaim || loading) return
@@ -55,10 +54,10 @@ export default function TasksScreen() {
       <div className="card" style={{ marginBottom: 16 }}>
         <h3 style={{ fontSize: 16, marginBottom: 8 }}>📅 দৈনিক টাস্ক</h3>
         <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 12 }}>
-          প্রতিটি অ্যাড বাটনের {needSessions}টি সেশন → {bonusReward} পয়েন্ট
+          দৈনিক {needSessions}টি সেশন পূর্ণ করলে → {bonusReward} পয়েন্ট
         </p>
         <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>
-          🎁 বাটন ১: {rewardSess}/{needSessions} &nbsp;|&nbsp; 📢 বাটন ২: {popupSess}/{needSessions}
+          আজকের সেশন: {sessions} / {needSessions}
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           {Array.from({ length: needSessions }).map((_, i) => (
