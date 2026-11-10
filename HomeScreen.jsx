@@ -17,13 +17,9 @@ export default function HomeScreen() {
 
   const needSessions = settings.daily_task_sessions || 3
   const bonusReward = settings.daily_task_reward || 200
-  const rewardSess = user.reward_sessions || 0
-  const popupSess = user.popup_sessions || 0
-  const progress = Math.min(rewardSess, popupSess, needSessions)
-  const canClaimBonus =
-    rewardSess >= needSessions &&
-    popupSess >= needSessions &&
-    !user.daily_bonus_claimed
+  const sessions = user.sessions_today || 0
+  const progress = Math.min(sessions, needSessions)
+  const canClaimBonus = sessions >= needSessions && !user.daily_bonus_claimed
 
   const claimBonus = async () => {
     if (!canClaimBonus) return
@@ -70,7 +66,7 @@ export default function HomeScreen() {
       <div className="card" style={{ marginBottom: 16 }}>
         <h3 style={{ fontSize: 15, marginBottom: 10 }}>📊 সেশন প্রগ্রেস</h3>
         <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>
-          🎁 বাটন ১: {rewardSess}/{needSessions} &nbsp;|&nbsp; 📢 বাটন ২: {popupSess}/{needSessions}
+          আজকের সেশন: {sessions} / {needSessions}
         </div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
           {Array.from({ length: needSessions }).map((_, i) => (
@@ -86,7 +82,7 @@ export default function HomeScreen() {
           </button>
         ) : (
           <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-            প্রতিটি বাটনের {needSessions}টি সেশন পূরণ হলে বোনাস পাবেন
+            সব বাটন মিলে দৈনিক {needSessions}টি সেশন পূর্ণ হলে বোনাস পাবেন
           </p>
         )}
       </div>
