@@ -5,7 +5,14 @@ import { useUser } from './UserContext.jsx'
 export default function HomeScreen() {
   const { user, settings, updateUser, addPoints } = useUser()
   const navigate = useNavigate()
-  if (!user) return null
+  
+  if (!user) {
+    return (
+      <div className="loading">
+        লোড হচ্ছে...
+      </div>
+    )
+  }
 
   const spinFee = settings.spin_entry_fee || 10
   const mahjongFee = settings.mahjong_entry_fee || 50
@@ -122,4 +129,4 @@ export default function HomeScreen() {
       </button>
     </div>
   )
-                                                                   }
+}
