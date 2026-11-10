@@ -1,434 +1,233 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useUser } from './UserContext.jsx'
 
-const EMOJIS = [
-  '🀄', '🐉', '🎋', '🌸', '⚪',
-  '🔴', '🟢', '🔵', '⭐', '🌙',
-  '☀️', '🀅', '🀆', '🌺', '🍀'
-]
-const MAX_SLOTS = 7
-const WIN_POINTS = 300
+// ১৫ ধরনের ইমোজি - কালারফুল রাখতে CSS .tile এ গ্রেডিয়েন্ট দেওয়া হয়েছে
+const EMOJIS = ['🀄','🐉','🎋','🌸','🔴','🟢','🔵','⭐','🌙','☀️','🌺','🍀','💛','💜','🧡']
+
+const TILE_WIDTH = 34
+const TILE_HEIGHT = 44
+const GRID_COLS = 16
+const GRID_ROWS = 10
+const TOTAL_TILES_LIMIT = 288 // ২৮৮ টাইল নিশ্চিত করা হয়েছে
 
 export default function MahjongScreen() {
-  const { addPoints } = useUser()
+  const { user, settings, addPoints } = useUser()
   const navigate = useNavigate()
-  const boardRef = useRef(null)
+  const location = useLocation()
+
+  const isFree = new URLSearchParams(location.search).get('mode') === 'free'
+  const entryFee = settings.mahjong_entry_fee || 50
 
   const [tiles, setTiles] = useState([])
-  const [slots, setSlots] = useState([])
-  const [score, setScore] = useState(0)
-  const [history, setHistory] = useState([])
-  const [isGameOver, setIsGameOver] = useState(false)
-  const [isWin, setIsWin] = useState(false)
-  const [showResult, setShowResult] = useState(false)
-  const [tileSize, setTileSize] = useState({ w: 36, h: 46, stepX: 31, stepY: 38 })
+  const [selectedTileId, setSelectedTileId] = useState(null)
+  const [isWon, setIsWon] = useState(false)
+  const [currentScoreDisplay, setCurrentScoreDisplay] = useState(0)
 
-  const calcSize = useCallback(() => {
-    const w = Math.min(window.innerWidth, 480)
-    const h = window.innerHeight - 200
-    const availW = w * 0.96
-    const cols = 10
-    let TILE_W = Math.floor((availW / (cols + 0.3)) / 0.86)
-    let TILE_H = Math.floor(TILE_W * 1.26)
-    if (TILE_W < 30) { TILE_W = 30; TILE_H = Math.floor(30 * 1.26) }
-    if (TILE_W > 44) { TILE_W = 44; TILE_H = Math.floor(44 * 1.26) }
-    return {
-      w: TILE_W,
-      h: TILE_H,
-      stepX: TILE_W * 0.86,
-      stepY: TILE_H * 0.82
-    }
-  }, [])
+  // লেআউট এবং ডেক তৈরি করা (মেমোরাইজড)
+  const initializeGame = useCallback(() => {
+    let positions = []
+    const xOff = (window.innerWidth - GRID_COLS * (TILE_WIDTH + 2)) / 2
 
-  const generatePattern = useCallback((size) => {
-    const positions = []
-    // Layer 1
-    for (let r = 0; r < 9; r++) {
-      for (let c = 0; c < 10; c++) {
-        if ((r === 0 || r === 8) && (c === 0 || c === 9)) continue
-        positions.push({ x: c, y: r, layer: 1 })
+    // একটি বেসিক লেআউট - 4 লেয়ার
+    for (let layer = 0; layer < 4; layer++) {
+      for (let r = layer; r < GRID_ROWS - layer; r++) {
+        for (let c = layer; c < GRID_COLS - layer; c++) {
+          positions.push({ x: c * (TILE_WIDTH + 1) + xOff, y: r * (TILE_HEIGHT + 2) + 120, z: layer })
+        }
       }
     }
-    // Layer 2
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        positions.push({ x: c + 1, y: r + 0.5, layer: 2 })
-      }
-    }
-    // Layer 3
-    for (let r = 0; r < 7; r++) {
-      for (let c = 0; c < 7; c++) {
-        positions.push({ x: c + 1.5, y: r + 1, layer: 3 })
-      }
-    }
-    // Layer 4
-    for (let r = 0; r < 6; r++) {
-      for (let c = 0; c < 6; c++) {
-        positions.push({ x: c + 2, y: r + 1.5, layer: 4 })
-      }
-    }
-    // Layer 5
-    for (let r = 0; r < 5; r++) {
-      for (let c = 0; c < 5; c++) {
-        positions.push({ x: c + 2.5, y: r + 2, layer: 5 })
-      }
-    }
-    // Layer 6
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < 6; c++) {
-        positions.push({ x: c + 2, y: r + 2.5, layer: 6 })
-      }
-    }
+    // এলোমেলো করে ২৮৮টি অবস্থান নেওয়া
+    positions.sort(() => Math.random() - 0.5)
+    const finalPositions = positions.slice(0, TOTAL_TILES_LIMIT) // অবশ্যই 288
 
-    const final = positions.slice(0, 288)
-    const boardW = Math.min(window.innerWidth, 480)
-    const boardH = window.innerHeight - 210
-
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
-    final.forEach(p => {
-      if (p.x < minX) minX = p.x
-      if (p.x > maxX) maxX = p.x
-      if (p.y < minY) minY = p.y
-      if (p.y > maxY) maxY = p.y
-    })
-
-    const patternW = (maxX - minX) * size.stepX + size.w
-    const patternH = (maxY - minY) * size.stepY + size.h
-    let startX = (boardW - patternW) / 2 - minX * size.stepX
-    let startY = (boardH - patternH) / 2 - minY * size.stepY
-    if (startX < 6) startX = 6
-    if (startY < 6) startY = 6
-
-    return final.map((p, i) => ({
-      id: i,
-      x: startX + p.x * size.stepX,
-      y: startY + p.y * size.stepY,
-      layer: p.layer
-    }))
-  }, [])
-
-  const initGame = useCallback(() => {
-    const size = calcSize()
-    setTileSize(size)
-    const positions = generatePattern(size)
-    const total = positions.length
-
+    // ডেক তৈরি (প্রতিটি ইমোজি ৩ এর গুণিতক)
     const deck = []
-    const triplets = Math.floor(total / 3)
-    for (let i = 0; i < triplets; i++) {
+    // 288 / 3 = 96 triplets
+    for (let i = 0; i < TOTAL_TILES_LIMIT / 3; i++) {
       const e = EMOJIS[i % EMOJIS.length]
       deck.push(e, e, e)
     }
-    while (deck.length < total) deck.push(EMOJIS[deck.length % EMOJIS.length])
     deck.sort(() => Math.random() - 0.5)
 
-    const newTiles = positions.map((pos, idx) => ({
-      id: idx,
-      emoji: deck[idx],
+    const finalTiles = finalPositions.map((pos, i) => ({
+      id: i,
       x: pos.x,
       y: pos.y,
-      layer: pos.layer,
-      isLocked: false,
-      isRemoved: false
+      z: pos.z,
+      emoji: deck[i],
+      status: 'visible' // 'visible', 'matched'
     }))
 
-    setTiles(newTiles)
-    setSlots([])
-    setScore(0)
-    setHistory([])
-    setIsGameOver(false)
-    setIsWin(false)
-    setShowResult(false)
-  }, [calcSize, generatePattern])
+    setTiles(finalTiles)
+    setSelectedTileId(null)
+    setIsWon(false)
+    setCurrentScoreDisplay(0)
+  }, [])
 
   useEffect(() => {
-    initGame()
-  }, [initGame])
+    initializeGame()
+  }, [initializeGame])
 
-  // Check locks
-  useEffect(() => {
-    if (tiles.length === 0) return
-    const thX = tileSize.w * 0.80
-    const thY = tileSize.h * 0.80
+  // ম্যাচ চেক করার হেল্পার ফাংশন
+  const isSelectable = (tile, allTiles) => {
+    const visibleTiles = allTiles.filter(t => t.status === 'visible')
+    // উপরে কোনো টাইল আছে কি না চেক
+    const blockedTop = visibleTiles.some(t => 
+      t.z > tile.z && 
+      Math.abs(t.x - tile.x) < TILE_WIDTH && 
+      Math.abs(t.y - tile.y) < TILE_HEIGHT
+    )
+    if (blockedTop) return false
 
-    setTiles(prev => {
-      const updated = prev.map(t1 => {
-        if (t1.isRemoved) return t1
-        let locked = false
-        for (const t2 of prev) {
-          if (t2.isRemoved || t1.id === t2.id) continue
-          if (t2.layer > t1.layer) {
-            const dx = Math.abs(t1.x - t2.x)
-            const dy = Math.abs(t1.y - t2.y)
-            if (dx < thX && dy < thY) {
-              locked = true
-              break
-            }
-          }
+    // বামে বা ডানে ফাঁকা কি না চেক
+    const blockedLeft = visibleTiles.some(t =>
+      t.z === tile.z &&
+      t.x < tile.x && t.x > tile.x - TILE_WIDTH &&
+      Math.abs(t.y - tile.y) < TILE_HEIGHT
+    )
+    const blockedRight = visibleTiles.some(t =>
+      t.z === tile.z &&
+      t.x > tile.x && t.x < tile.x + TILE_WIDTH &&
+      Math.abs(t.y - tile.y) < TILE_HEIGHT
+    )
+    return !blockedLeft || !blockedRight
+  }
+
+  const handleTileClick = async (id) => {
+    const clickedTile = tiles.find(t => t.id === id)
+    if (!clickedTile || clickedTile.status !== 'visible') return
+    
+    // টাইলটি ব্লকড কি না চেক
+    if (!isSelectable(clickedTile, tiles)) {
+      alert('এই টাইলটি ব্লক করা আছে! এটি আগে মুক্ত করুন।')
+      return
+    }
+
+    if (selectedTileId === null) {
+      setSelectedTileId(id)
+    } else {
+      const firstTile = tiles.find(t => t.id === selectedTileId)
+      if (firstTile.id === id) {
+        // একই টাইল দুইবার ক্লিক - ডিসিলেক্ট
+        setSelectedTileId(null)
+        return
+      }
+
+      if (firstTile.emoji === clickedTile.emoji) {
+        // MATCH!
+        const newTiles = tiles.map(t => 
+          (t.id === firstTile.id || t.id === clickedTile.id) 
+            ? { ...t, status: 'matched' } 
+            : t
+        )
+        setTiles(newTiles)
+        setSelectedTileId(null)
+
+        // স্কোরিং লজিক আপডেট
+        const baseWin = settings.mahjong_win_points || 300
+        const finishBonus = Math.floor(baseWin * 0.2) // ২০% এক্সট্রা বোনাস
+        const divisiblePool = baseWin - finishBonus
+
+        const totalTiles = newTiles.length
+        const remainingTiles = newTiles.filter(t => t.status === 'visible').length
+        const matchedTiles = totalTiles - remainingTiles
+
+        // গেম চলাকালীন প্রোগ্রেসিভ পয়েন্ট
+        const percentDone = (totalTiles - remainingTiles) / totalTiles
+        let currentPoints = Math.floor(divisiblePool * percentDone)
+
+        if (remainingTiles === 0) {
+          // জয়! সব পয়েন্ট প্লাস বোনাস
+          setIsWon(true)
+          const finalPoints = isFree
+            ? Math.floor((divisiblePool + finishBonus) / 10) // ফ্রি = ১/১০
+            : divisiblePool + finishBonus
+          await addPoints(finalPoints)
+          alert(`অভিনন্দন! আপনি গেমটি শেষ করেছেন। আপনার মোট পয়েন্ট: +${finalPoints} ⭐`)
+          initializeGame() // খেলা রিসেট
+        } else {
+          // সাধারণ ম্যাচ
+          // ফ্রি মোডে ১/১০ পয়েন্ট প্রদর্শন
+          const displayScore = isFree ? Math.floor(currentPoints / 10) : currentPoints
+          setCurrentScoreDisplay(displayScore)
         }
-        return { ...t1, isLocked: locked }
-      })
-      return updated
-    })
-  }, [tiles.filter(t => t.isRemoved).length, tileSize]) // re-check when tiles removed
 
-  const onTileClick = (tile) => {
-    if (isGameOver || tile.isLocked || tile.isRemoved) return
-    if (slots.length >= MAX_SLOTS) return
-
-    setHistory(h => [...h, { tileId: tile.id, prevSlots: [...slots] }])
-    setTiles(prev => prev.map(t => t.id === tile.id ? { ...t, isRemoved: true } : t))
-    const newSlots = [...slots, tile].sort((a, b) => a.emoji.localeCompare(b.emoji))
-    setSlots(newSlots)
-
-    // Check match after short delay
-    setTimeout(() => {
-      const counts = {}
-      newSlots.forEach(t => { counts[t.emoji] = (counts[t.emoji] || 0) + 1 })
-      let matched = null
-      for (const e in counts) {
-        if (counts[e] >= 3) { matched = e; break }
+      } else {
+        // NOT A MATCH - প্রথমটি ডিসিলেক্ট করে দ্বিতীয়টি সিলেক্ট
+        setSelectedTileId(id)
       }
-
-      if (matched) {
-        setScore(s => s + 30)
-        let removed = 0
-        const filtered = newSlots.filter(t => {
-          if (t.emoji === matched && removed < 3) { removed++; return false }
-          return true
-        })
-        setSlots(filtered)
-
-        // Check win
-        setTiles(current => {
-          const allGone = current.every(t => t.id === tile.id || t.isRemoved)
-          if (allGone && filtered.length === 0) {
-            setIsWin(true)
-            setIsGameOver(true)
-            setShowResult(true)
-            addPoints(WIN_POINTS)
-          }
-          return current
-        })
-      } else if (newSlots.length >= MAX_SLOTS) {
-        setIsGameOver(true)
-        setShowResult(true)
-      }
-    }, 80)
+    }
   }
 
-  const undo = () => {
-    if (isGameOver || history.length === 0) return
-    const last = history[history.length - 1]
-    setHistory(h => h.slice(0, -1))
-    setTiles(prev => prev.map(t => t.id === last.tileId ? { ...t, isRemoved: false } : t))
-    setSlots(last.prevSlots)
+  // কালারফুল টাইল স্টাইল CSS
+  const tileStyle = {
+    position: 'absolute',
+    width: TILE_WIDTH,
+    height: TILE_HEIGHT,
+    background: 'linear-gradient(to bottom, #fffef5, #f0e6d3)', // টাইল কালারফুল রাখতে গ্রেডিয়েন্ট
+    border: '1px solid #c9bda5',
+    borderRadius: 5,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    fontSize: 26,
+    cursor: 'pointer',
+    transition: 'all .2s ease',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+    zIndex: 10,
+    userSelect: 'none'
   }
 
-  const shuffle = () => {
-    if (isGameOver) return
-    setTiles(prev => {
-      const active = prev.filter(t => !t.isRemoved)
-      const emos = active.map(t => t.emoji).sort(() => Math.random() - 0.5)
-      let i = 0
-      return prev.map(t => {
-        if (t.isRemoved) return t
-        return { ...t, emoji: emos[i++] }
-      })
-    })
+  const selectedStyle = {
+    border: '3px solid var(--secondary)',
+    boxShadow: '0 0 10px rgba(255,184,0,0.6)'
   }
 
-  const remaining = tiles.filter(t => !t.isRemoved).length
+  const matchedStyle = {
+    opacity: 0,
+    pointerEvents: 'none'
+  }
+
+  const remaining = tiles.filter(t => t.status === 'visible').length
 
   return (
-    <div style={{
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'radial-gradient(circle at center, #1e5e32, #0a2a14)',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        padding: '10px 16px',
-        color: 'white',
-        zIndex: 50
-      }}>
-        <button
-          onClick={() => navigate('/')}
-          style={{
-            background: 'rgba(0,0,0,0.4)',
-            border: 'none',
-            color: 'white',
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            fontSize: 16
-          }}
-        >←</button>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>স্কোর / বাকি</div>
-          <div style={{ fontSize: 18, color: '#FFB800', fontWeight: 700 }}>
-            {score} / {remaining}
-          </div>
+    <div className="screen-container scroll-area" style={{ paddingBottom: 140 }}>
+      <div className="header" style={{ position: 'fixed', top: 0, left: 0, right: 0, padding: '16px 20px', zIndex: 50, background: 'rgba(15,23,42,0.9)' }}>
+        <button onClick={() => navigate('/')} className="back-btn">←</button>
+        <h2>{isFree ? '🀄 ফ্রি মাহজং' : '🀄 মাহজং'}</h2>
+        <div style={{ width: 40 }} />
+      </div>
+
+      <div style={{ position: 'fixed', top: 70, left: 0, right: 0, padding: '10px 16px', zIndex: 40, background: 'rgba(15,23,42,0.8)' }}>
+        <div className="stats-row" style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', borderRadius: 10 }}>
+          <span>কয়েন: <b>🪙 {user?.coins || 0}</b></span>
+          <span>বেট: <b>{isFree ? 'ফ্রি' : entryFee}</b></span>
         </div>
-        <div style={{ width: 36 }} />
+        <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, marginTop: 10 }}>
+          টাইল বাকি: <strong>{remaining} / {TOTAL_TILES_LIMIT}</strong> &nbsp;|&nbsp; 
+          স্কোর: <strong>⭐ {currentScoreDisplay}</strong>
+        </p>
       </div>
 
-      {/* Slots */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        gap: 4,
-        padding: '0 12px 8px',
-        zIndex: 50
-      }}>
-        {Array.from({ length: MAX_SLOTS }).map((_, i) => (
-          <div key={i} style={{
-            width: 40,
-            height: 40,
-            borderRadius: 6,
-            background: slots[i] ? '#fff' : 'rgba(255,255,255,0.12)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 20,
-            boxShadow: 'inset 0 0 4px rgba(0,0,0,0.3)',
-            border: '1px solid rgba(255,255,255,0.1)'
-          }}>
-            {slots[i]?.emoji || ''}
-          </div>
-        ))}
-      </div>
-
-      {/* Board */}
-      <div ref={boardRef} style={{
-        flex: 1,
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
-        {tiles.filter(t => !t.isRemoved).sort((a, b) => a.layer - b.layer).map(tile => (
+      <div style={{ position: 'relative', marginTop: 180, height: 600 }}>
+        {tiles.map(tile => (
           <div
             key={tile.id}
-            onClick={() => onTileClick(tile)}
+            onClick={() => handleTileClick(tile.id)}
             style={{
-              position: 'absolute',
+              ...tileStyle,
               left: tile.x,
               top: tile.y,
-              width: tileSize.w,
-              height: tileSize.h,
-              background: 'linear-gradient(to bottom, #fff, #e0e0e0)',
-              borderRadius: 4,
-              border: '1px solid #999',
-              boxShadow: '0 2px 0 #777, 1px 3px 4px rgba(0,0,0,0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: Math.max(14, Math.floor(tileSize.w * 0.52)),
-              zIndex: tile.layer * 10 + 10,
-              cursor: tile.isLocked ? 'not-allowed' : 'pointer',
-              filter: tile.isLocked ? 'brightness(0.4) contrast(0.85)' : 'none',
-              transition: 'transform 0.1s'
+              zIndex: tile.z + 10,
+              ...(selectedTileId === tile.id ? selectedStyle : {}),
+              ...(tile.status === 'matched' ? matchedStyle : {})
             }}
           >
             {tile.emoji}
           </div>
         ))}
       </div>
-
-      {/* Controls */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-around',
-        padding: '10px 16px 24px',
-        zIndex: 50
-      }}>
-        <button onClick={undo} style={ctrlBtnStyle}>↩️</button>
-        <button onClick={shuffle} style={ctrlBtnStyle}>🔀</button>
-        <button onClick={initGame} style={ctrlBtnStyle}>🔄</button>
-      </div>
-
-      {/* Result Overlay */}
-      {showResult && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'rgba(0,0,0,0.85)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 200
-        }}>
-          <div style={{
-            background: '#1c1c1c',
-            border: `2px solid ${isWin ? '#22C55E' : '#EF4444'}`,
-            borderRadius: 20,
-            padding: 28,
-            textAlign: 'center',
-            width: '86%',
-            maxWidth: 320,
-            color: 'white'
-          }}>
-            <h2 style={{ fontSize: 26, marginBottom: 10, color: isWin ? '#22C55E' : '#EF4444' }}>
-              {isWin ? '🎉 আপনি জিতেছেন!' : '💥 গেম ওভার'}
-            </h2>
-            <p style={{ color: '#ccc', marginBottom: 16, fontSize: 15 }}>
-              {isWin ? `অসাধারণ! +${WIN_POINTS} পয়েন্ট পেয়েছেন।` : 'স্লট ভরে গেছে! আবার চেষ্টা করুন।'}
-            </p>
-            <button
-              onClick={() => navigate('/')}
-              style={{
-                background: '#6C3CE9',
-                color: 'white',
-                border: 'none',
-                padding: 14,
-                width: '100%',
-                borderRadius: 12,
-                fontSize: 16,
-                fontWeight: 700
-              }}
-            >
-              হোমে ফিরে যান
-            </button>
-            {!isWin && (
-              <button
-                onClick={initGame}
-                style={{
-                  background: 'transparent',
-                  color: '#FFB800',
-                  border: '2px solid #FFB800',
-                  padding: 12,
-                  width: '100%',
-                  borderRadius: 12,
-                  fontSize: 15,
-                  fontWeight: 600,
-                  marginTop: 10
-                }}
-              >
-                আবার খেলুন
-              </button>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
-}
-
-const ctrlBtnStyle = {
-  width: 52,
-  height: 52,
-  borderRadius: '50%',
-  background: 'linear-gradient(to bottom, #4a90e2, #1e5aa8)',
-  border: '3px solid #fff',
-  color: 'white',
-  fontSize: 22,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  boxShadow: '0 4px 10px rgba(0,0,0,0.4)'
 }
