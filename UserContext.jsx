@@ -25,12 +25,12 @@ function fallbackUser(tgId = 0, username = 'Player') {
     is_banned: false,
     free_spin_used: 0,
     free_mahjong_used: 0,
-    reward_sessions: 0,
-    popup_sessions: 0,
     reward_phase: 0,
     popup_phase: 0,
     reward_cd_until: null,
     popup_cd_until: null,
+    reward_cycle_done: false,
+    popup_cycle_done: false,
     daily_bonus_claimed: false
   }
 }
@@ -98,10 +98,10 @@ export function UserProvider({ children }) {
             sessions_today: 0,
             free_spin_used: 0,
             free_mahjong_used: 0,
-            reward_sessions: 0,
-            popup_sessions: 0,
             reward_phase: 0,
             popup_phase: 0,
+            reward_cycle_done: false,
+            popup_cycle_done: false,
             daily_bonus_claimed: false,
             referral_code: refCode,
             referred_by: startParam
@@ -147,10 +147,10 @@ export function UserProvider({ children }) {
               sessions_today: 0,
               free_spin_used: 0,
               free_mahjong_used: 0,
-              reward_sessions: 0,
-              popup_sessions: 0,
               reward_phase: 0,
               popup_phase: 0,
+              reward_cycle_done: false,
+              popup_cycle_done: false,
               daily_bonus_claimed: false
             })
           }
@@ -250,4 +250,4 @@ export function UserProvider({ children }) {
 
 export function useUser() {
   return useContext(UserContext)
-}
+          }
