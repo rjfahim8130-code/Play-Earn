@@ -35,7 +35,20 @@ export function UserProvider({ children }) {
         if (tgId === ADMIN_TG_ID) setIsAdmin(true)
 
         if (!tgId) {
-          setUser({ id: 'local', tg_id: 0, username: 'DevPlayer', coins: 500, points: 0, sessions_today: 0, referral_code: 'DEV123', is_banned: false, free_spin_used: 0, free_mahjong_used: 0 })
+          setUser({ 
+            id: 'local', 
+            tg_id: 0, 
+            username: 'DevPlayer', 
+            coins: 500, 
+            points: 0, 
+            sessions_today: 0, 
+            referral_code: 'DEV123', 
+            is_banned: false, 
+            free_spin_used: 0, 
+            free_mahjong_used: 0,
+            reward_sessions: 0, // যোগ করা হয়েছে
+            popup_sessions: 0   // যোগ করা হয়েছে
+          })
           setLoading(false)
           return
         }
@@ -45,7 +58,16 @@ export function UserProvider({ children }) {
         if (!existing) {
           let refCode = generateRefCode()
           const { data: newUser } = await supabase.from('users').insert({
-            tg_id: tgId, username, coins: settings.starting_coins || 100, sessions_today: 0, referral_code: refCode, referred_by: startParam
+            tg_id: tgId, 
+            username, 
+            coins: settings.starting_coins || 100, 
+            sessions_today: 0, 
+            free_spin_used: 0,
+            free_mahjong_used: 0,
+            reward_sessions: 0, // যোগ করা হয়েছে
+            popup_sessions: 0,  // যোগ করা হয়েছে
+            referral_code: refCode, 
+            referred_by: startParam
           }).select().single()
 
           if (newUser) {
@@ -63,7 +85,10 @@ export function UserProvider({ children }) {
             const { data: updated } = await supabase.from('users').update({ 
               sessions_today: 0, 
               free_spin_used: 0, 
-              free_mahjong_used: 0 
+              free_mahjong_used: 0,
+              reward_sessions: 0, // যোগ করা হয়েছে
+              popup_sessions: 0,  // যোগ করা হয়েছে
+              daily_bonus_claimed: false 
             }).eq('id', existing.id).select().single()
             setUser(updated || existing)
           } else {
@@ -96,7 +121,7 @@ export function UserProvider({ children }) {
     }
   }, [user, updateUser])
 
-  // ✅ নতুন যোগ করা হয়েছে: অ্যাডমিন সেটিংস রিফ্রেশ করার জন্য
+  // ✅ অ্যাডমিন সেটিংস রিফ্রেশ করার জন্য
   const refreshSettings = useCallback(async () => {
     const { data } = await supabase.from('settings').select('*').single()
     if (data) setSettings({ ...DEFAULT_SETTINGS, ...data })
@@ -111,4 +136,5 @@ export function UserProvider({ children }) {
 
 export function useUser() {
   return useContext(UserContext)
-}
+                  }
+  
