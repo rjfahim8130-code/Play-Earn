@@ -81,7 +81,7 @@ export default function EarnScreen() {
 
     if (thisDone && otherDone) {
       updates.sessions_today = (user.sessions_today || 0) + 1
-      updates.total_sessions = (user.total_sessions || 0) + 1
+      updates.total_sessions = (user.total_sessions || 0) + 1  // লাইফটাইম সেশন বাড়াবে, কখনো ০ হবে না
       updates.last_session_at = new Date().toISOString()
       updates.reward_cycle_done = false
       updates.popup_cycle_done = false
@@ -161,4 +161,5 @@ export default function EarnScreen() {
       </div>
     </div>
   )
-}
+  }
+      
