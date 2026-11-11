@@ -4,7 +4,7 @@ import { useUser } from './UserContext.jsx'
 import { supabase } from './supabase.js'
 
 export default function EarnScreen() {
-  const { user, settings, updateUser } = useUser()
+  const { user, settings, updateUser, isAdmin } = useUser()
   const navigate = useNavigate()
 
   const [rewardLeft, setRewardLeft] = useState(0)
@@ -13,6 +13,36 @@ export default function EarnScreen() {
   const shortMs = (settings.ad_cooldown_minutes || 5) * 60 * 1000
   const longMs = (settings.session_cooldown_minutes || 45) * 60 * 1000
   const maxSessions = settings.max_sessions_per_day || 5
+
+  // ক) কয়েন স্ক্রিনে ঢোকা → ইন্টারস্টিশিয়াল অ্যাড (সেশনে সর্বোচ্চ ২ বার, ৫ মিনিট CD)
+  useEffect(() => {
+    if (!user) return
+    if (isAdmin) return                    // অ্যাডমিনকে অ্যাড দেখাবে না
+    if (settings.ads_enabled === false) return  // অ্যাডমিন বন্ধ রাখলে দেখাবে না
+    if (typeof window.show_12237096 !== 'function') return
+
+    const maxPerSession = 2
+    const count = user.interstitial_count || 0
+    if (count >= maxPerSession) return
+
+    const cdUntil = user.interstitial_cd_until
+      ? new Date(user.interstitial_cd_until).getTime()
+      : 0
+    if (Date.now() < cdUntil) return
+
+    const t = setTimeout(async () => {
+      try {
+        await window.show_12237096()
+        const shortMs = (settings.ad_cooldown_minutes || 5) * 60 * 1000
+        await updateUser({
+          interstitial_count: count + 1,
+          interstitial_cd_until: new Date(Date.now() + shortMs).toISOString()
+        })
+      } catch (_) {}
+    }, 1500)
+
+    return () => clearTimeout(t)
+  }, [user?.id, isAdmin, settings.ads_enabled])
 
   useEffect(() => {
     if (!user) return
@@ -56,6 +86,25 @@ export default function EarnScreen() {
       return alert('আজকের সেশন লিমিট শেষ!')
     }
 
+    // খ) দুই বাটন → রিওয়ার্ডেড অ্যাড হ্যান্ডেলিং
+    const skipAd = isAdmin || settings.ads_enabled === false
+
+    if (!skipAd) {
+      if (typeof window.show_12237096 !== 'function') {
+        alert('বিজ্ঞাপন লোড হয়নি। একটু পর চেষ্টা করুন।')
+        return
+      }
+      try {
+        if (type === 'reward') {
+          await window.show_12237096()       // Rewarded Interstitial
+        } else {
+          await window.show_12237096('pop') // Rewarded Popup
+        }
+      } catch (_) {
+        return // অ্যাড শেষ হয়নি = কয়েন নেই
+      }
+    }
+
     const ok = window.confirm(`বিজ্ঞাপন দেখে ${coins} কয়েন পাবেন?`)
     if (!ok) return
 
@@ -85,6 +134,10 @@ export default function EarnScreen() {
       updates.last_session_at = new Date().toISOString()
       updates.reward_cycle_done = false
       updates.popup_cycle_done = false
+
+      // গ) পূর্ণ সেশন শেষে ইন্টারস্টিশিয়াল কাউন্ট রিসেট
+      updates.interstitial_count = 0
+      updates.interstitial_cd_until = null
     }
 
     await updateUser(updates)
@@ -161,5 +214,4 @@ export default function EarnScreen() {
       </div>
     </div>
   )
-  }
-      
+            }
