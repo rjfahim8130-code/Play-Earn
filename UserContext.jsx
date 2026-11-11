@@ -32,7 +32,8 @@ function fallbackUser(tgId = 0, username = 'Player') {
     popup_cd_until: null,
     reward_cycle_done: false,
     popup_cycle_done: false,
-    daily_bonus_claimed: false
+    daily_bonus_claimed: false,
+    last_reset_date: new Date().toLocaleDateString('en-CA')
   }
 }
 
@@ -91,6 +92,8 @@ export function UserProvider({ children }) {
           .eq('tg_id', tgId)
           .maybeSingle()
 
+        const todayStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD (লোকাল তারিখ)
+
         if (!existing) {
           const refCode = generateRefCode()
           const startCoins = settings.starting_coins || 100
@@ -112,7 +115,8 @@ export function UserProvider({ children }) {
             popup_cycle_done: false,
             daily_bonus_claimed: false,
             referral_code: refCode,
-            referred_by: startParam
+            referred_by: startParam,
+            last_reset_date: todayStr
           }).select().single()
 
           if (newUser && !error) {
@@ -136,19 +140,23 @@ export function UserProvider({ children }) {
               ...fallbackUser(tgId, username),
               first_name: firstName,
               last_name: lastName,
-              photo_url: photoUrl
+              photo_url: photoUrl,
+              last_reset_date: todayStr
             })
           }
         } else {
+          const lastReset = existing.last_reset_date || null
+          const isNewDay = lastReset !== todayStr
+
           const profileUpdates = {}
+
+          // টেলিগ্রাম প্রোফাইল আপডেট
           if (firstName && existing.first_name !== firstName) profileUpdates.first_name = firstName
           if (lastName && existing.last_name !== lastName) profileUpdates.last_name = lastName
           if (photoUrl && existing.photo_url !== photoUrl) profileUpdates.photo_url = photoUrl
           if (username && existing.username !== username) profileUpdates.username = username
 
-          // Daily reset (শুধু দৈনিক ফিল্ড — total_sessions রাখবে)
-          const last = existing.last_session_at ? new Date(existing.last_session_at) : null
-          const isNewDay = !last || last.toDateString() !== new Date().toDateString()
+          // শুধু নতুন দিনে — দৈনিক ফিল্ড রিসেট (total_sessions সম্পূর্ণ নিরাপদ থাকবে)
           if (isNewDay) {
             Object.assign(profileUpdates, {
               sessions_today: 0,
@@ -156,9 +164,12 @@ export function UserProvider({ children }) {
               free_mahjong_used: 0,
               reward_phase: 0,
               popup_phase: 0,
+              reward_cd_until: null,
+              popup_cd_until: null,
               reward_cycle_done: false,
               popup_cycle_done: false,
-              daily_bonus_claimed: false
+              daily_bonus_claimed: false,
+              last_reset_date: todayStr
             })
           }
 
@@ -184,7 +195,7 @@ export function UserProvider({ children }) {
     init()
   }, [])
 
-  // Functional update — পুরনো coins/points আর ওভাররাইট হবে না
+  // Functional update
   const updateUser = useCallback(async (updates) => {
     let id = userIdRef.current
     setUser(prev => {
@@ -270,4 +281,4 @@ export function UserProvider({ children }) {
 
 export function useUser() {
   return useContext(UserContext)
-          }
+            }
