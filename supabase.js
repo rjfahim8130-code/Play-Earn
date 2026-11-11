@@ -30,5 +30,6 @@ export const DEFAULT_SETTINGS = {
   free_game_per_day: 2,
   free_mahjong_per_day: 2,
   free_spin_reward_coins: 5,
-  free_game_reward_coins: 10
+  free_game_reward_coins: 10,
+  ads_enabled: 1
 }
