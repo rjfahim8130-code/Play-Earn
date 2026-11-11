@@ -18,7 +18,7 @@ export default function ProfileScreen() {
   const minActiveRefs = settings?.redeem_min_active_refs || 3
 
   // আসল সেশন = users.total_sessions (অ্যাড সাইকেল), game_history নয়
-  const totalSessions = user?.sessions_today || 0
+  const totalSessions = user?.total_sessions || 0
 
   useEffect(() => {
     if (!user || user.id === 'local') return
@@ -26,12 +26,12 @@ export default function ProfileScreen() {
     supabase.from('cards').select('*').eq('user_id', user.id)
       .then(({ data }) => setCards(data || []))
 
-    supabase.from('referrals').select('id, status').eq('referrer_id', user.id)
-      .then(({ data }) => {
-        const list = data || []
-        const active = list.filter(r => r.status === 'completed' || r.status === 'active')
-        setActiveRefs(active.length > 0 ? active.length : list.length)
-      })
+    // শুধুমাত্র completed (সচল) রেফারগুলোর সঠিক কাউন্ট ফেচ করা
+    supabase.from('referrals')
+      .select('id', { count: 'exact', head: true })
+      .eq('referrer_id', user.id)
+      .eq('status', 'completed')
+      .then(({ count }) => setActiveRefs(count || 0))
       .catch(() => setActiveRefs(0))
   }, [user])
 
@@ -122,7 +122,7 @@ export default function ProfileScreen() {
         <div className="card" style={{ textAlign: 'center', padding: 12 }}>
           <div>👥</div>
           <div style={{ fontWeight: 700 }}>{activeRefs}</div>
-          <div style={{ fontSize: 11, color: 'var(--muted)' }}>রেফার</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>সচল রেফার</div>
         </div>
       </div>
 
@@ -147,7 +147,7 @@ export default function ProfileScreen() {
             (আজ: {user.sessions_today || 0}টি)
           </div>
           <div>
-            👥 রেফার:{' '}
+            👥 সচল রেফার:{' '}
             <b style={{ color: activeRefs >= minActiveRefs ? 'var(--success)' : 'var(--danger)' }}>
               {activeRefs}
             </b>
@@ -211,4 +211,4 @@ export default function ProfileScreen() {
       </div>
     </div>
   )
-}
+          }
