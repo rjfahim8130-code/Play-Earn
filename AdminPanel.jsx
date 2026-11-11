@@ -28,6 +28,7 @@ const SETTINGS_KEYS = [
   'free_mahjong_per_day',
   'free_spin_reward_coins',
   'free_game_reward_coins',
+  'ads_enabled',
 ]
 
 export default function AdminPanel() {
@@ -124,8 +125,13 @@ export default function AdminPanel() {
       SETTINGS_KEYS.forEach(k => {
         const v = form[k]
         if (v === undefined || v === null || v === '') return
-        payload[k] = Number(v)
-        if (Number.isNaN(payload[k])) delete payload[k]
+        
+        if (k === 'ads_enabled') {
+          payload[k] = Number(v) // 1 = চালু, 0 = বন্ধ
+        } else {
+          payload[k] = Number(v)
+          if (Number.isNaN(payload[k])) delete payload[k]
+        }
       })
 
       if (Object.keys(payload).length === 0) {
@@ -234,6 +240,36 @@ export default function AdminPanel() {
               <p style={{ color: 'var(--muted)' }}>লোড হচ্ছে...</p>
             ) : (
               <>
+                <Section title="📺 বিজ্ঞাপন কন্ট্রোল">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>ইউজারদের বিজ্ঞাপন দেখাবে</div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        বন্ধ করলে কেউ অ্যাড দেখবে না (অ্যাডমিন কখনো দেখে না)
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({
+                        ...f,
+                        ads_enabled: f.ads_enabled === false || f.ads_enabled === 0 ? 1 : 0
+                      }))}
+                      style={{
+                        padding: '10px 16px',
+                        borderRadius: 10,
+                        border: 'none',
+                        fontWeight: 700,
+                        background: (form.ads_enabled === false || form.ads_enabled === 0)
+                          ? 'rgba(239,68,68,0.2)'
+                          : 'rgba(34,197,94,0.2)',
+                        color: (form.ads_enabled === false || form.ads_enabled === 0) ? '#EF4444' : '#22C55E'
+                      }}
+                    >
+                      {(form.ads_enabled === false || form.ads_enabled === 0) ? 'বন্ধ' : 'চালু'}
+                    </button>
+                  </div>
+                </Section>
+
                 <Section title="📺 অ্যাড সেটিংস">
                   <Field label="Reward অ্যাড কয়েন" value={form.reward_ad_coins} onChange={v => setForm(f => ({ ...f, reward_ad_coins: v }))} />
                   <Field label="Popup অ্যাড কয়েন" value={form.popup_ad_coins} onChange={v => setForm(f => ({ ...f, popup_ad_coins: v }))} />
@@ -376,4 +412,5 @@ function StatCard({ icon, label, value }) {
       <div style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</div>
     </div>
   )
-                  }
+                                           }
+                                                                                                  
