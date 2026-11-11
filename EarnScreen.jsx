@@ -4,7 +4,7 @@ import { useUser } from './UserContext.jsx'
 import { supabase } from './supabase.js'
 
 export default function EarnScreen() {
-  const { user, settings, updateUser, isAdmin } = useUser()
+  const { user, settings, updateUser, isAdmin, completeReferralIfNeeded } = useUser()
   const navigate = useNavigate()
 
   const [rewardLeft, setRewardLeft] = useState(0)
@@ -129,8 +129,9 @@ export default function EarnScreen() {
     const thisDone = updates[doneKey] === true || user[doneKey] === true
 
     if (thisDone && otherDone) {
+      const prevTotal = user.total_sessions || 0
       updates.sessions_today = (user.sessions_today || 0) + 1
-      updates.total_sessions = (user.total_sessions || 0) + 1  // লাইফটাইম সেশন বাড়াবে, কখনো ০ হবে না
+      updates.total_sessions = prevTotal + 1  // লাইফটাইম সেশন বাড়াবে, কখনো ০ হবে না
       updates.last_session_at = new Date().toISOString()
       updates.reward_cycle_done = false
       updates.popup_cycle_done = false
@@ -138,9 +139,16 @@ export default function EarnScreen() {
       // গ) পূর্ণ সেশন শেষে ইন্টারস্টিশিয়াল কাউন্ট রিসেট
       updates.interstitial_count = 0
       updates.interstitial_cd_until = null
-    }
 
-    await updateUser(updates)
+      await updateUser(updates)
+
+      // প্রথম পূর্ণ সেশন হলে রেফার pending বোনাস ট্রিগার
+      if (prevTotal === 0) {
+        await completeReferralIfNeeded?.(user.id)
+      }
+    } else {
+      await updateUser(updates)
+    }
 
     if (user.id && user.id !== 'local') {
       try {
@@ -214,4 +222,4 @@ export default function EarnScreen() {
       </div>
     </div>
   )
-            }
+      }
