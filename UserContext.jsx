@@ -33,6 +33,8 @@ function fallbackUser(tgId = 0, username = 'Player') {
     reward_cycle_done: false,
     popup_cycle_done: false,
     daily_bonus_claimed: false,
+    pending_ref_coins: 0,
+    pending_ref_points: 0,
     last_reset_date: new Date().toLocaleDateString('en-CA')
   }
 }
@@ -114,6 +116,8 @@ export function UserProvider({ children }) {
             reward_cycle_done: false,
             popup_cycle_done: false,
             daily_bonus_claimed: false,
+            pending_ref_coins: 0,
+            pending_ref_points: 0,
             referral_code: refCode,
             referred_by: startParam,
             last_reset_date: todayStr
@@ -127,12 +131,13 @@ export function UserProvider({ children }) {
                 .select('id')
                 .eq('referral_code', startParam)
                 .maybeSingle()
-              if (referrer) {
-                await supabase.from('referrals').insert({
+              if (referrer && referrer.id !== newUser.id) {
+                await supabase.from('referrals').upsert({
                   referrer_id: referrer.id,
                   referred_id: newUser.id,
-                  status: 'pending'
-                })
+                  status: 'pending',
+                  reward_given: false
+                }, { onConflict: 'referrer_id,referred_id' })
               }
             }
           } else {
@@ -212,6 +217,42 @@ export function UserProvider({ children }) {
     }
   }, [])
 
+  // completeReferralIfNeeded (১ সেশন সম্পূর্ণ হলে রেফারারের pending কয়েন যোগ)
+  const completeReferralIfNeeded = useCallback(async (referredUserId) => {
+    if (!referredUserId || referredUserId === 'local') return
+
+    try {
+      const { data: row } = await supabase
+        .from('referrals')
+        .select('id, referrer_id, reward_given')
+        .eq('referred_id', referredUserId)
+        .eq('reward_given', false)
+        .maybeSingle()
+
+      if (!row) return
+
+      const bonus = settings.referral_bonus_coins || 500
+      const { data: referrer } = await supabase
+        .from('users')
+        .select('pending_ref_coins')
+        .eq('id', row.referrer_id)
+        .single()
+
+      if (referrer) {
+        await supabase.from('users').update({
+          pending_ref_coins: (referrer.pending_ref_coins || 0) + bonus
+        }).eq('id', row.referrer_id)
+      }
+
+      await supabase.from('referrals').update({
+        status: 'completed',
+        reward_given: true
+      }).eq('id', row.id)
+    } catch (e) {
+      console.error('completeReferralIfNeeded error', e)
+    }
+  }, [settings.referral_bonus_coins])
+
   const addPoints = useCallback(async (amount) => {
     const pts = Number(amount) || 0
     if (!pts) return
@@ -247,14 +288,13 @@ export function UserProvider({ children }) {
           if (commission > 0) {
             const { data: referrer } = await supabase
               .from('users')
-              .select('points')
+              .select('pending_ref_points')
               .eq('id', refRow.referrer_id)
               .single()
             if (referrer) {
-              await supabase
-                .from('users')
-                .update({ points: (referrer.points || 0) + commission })
-                .eq('id', refRow.referrer_id)
+              await supabase.from('users').update({
+                pending_ref_points: (referrer.pending_ref_points || 0) + commission
+              }).eq('id', refRow.referrer_id)
             }
           }
         }
@@ -264,6 +304,23 @@ export function UserProvider({ children }) {
     }
   }, [settings.referral_commission_percent])
 
+  // claimReferralRewards (pending কয়েন ও পয়েন্ট মেইন ব্যালেন্সে ক্লেইম করা)
+  const claimReferralRewards = useCallback(async () => {
+    if (!user || user.id === 'local') return { coins: 0, points: 0 }
+
+    const pc = user.pending_ref_coins || 0
+    const pp = user.pending_ref_points || 0
+    if (pc <= 0 && pp <= 0) return { coins: 0, points: 0 }
+
+    await updateUser({
+      coins: (user.coins || 0) + pc,
+      points: (user.points || 0) + pp,
+      pending_ref_coins: 0,
+      pending_ref_points: 0
+    })
+    return { coins: pc, points: pp }
+  }, [user, updateUser])
+
   const refreshSettings = useCallback(async () => {
     const { data } = await supabase.from('settings').select('*').limit(1).maybeSingle()
     if (data) setSettings({ ...DEFAULT_SETTINGS, ...data })
@@ -272,7 +329,8 @@ export function UserProvider({ children }) {
   return (
     <UserContext.Provider value={{
       user, settings, loading, isAdmin,
-      updateUser, addPoints, setUser, refreshSettings
+      updateUser, addPoints, setUser, refreshSettings,
+      completeReferralIfNeeded, claimReferralRewards
     }}>
       {children}
     </UserContext.Provider>
@@ -281,4 +339,5 @@ export function UserProvider({ children }) {
 
 export function useUser() {
   return useContext(UserContext)
-            }
+    }
+    
